@@ -53,5 +53,8 @@ void CreateSwapChainImageViews(DeviceVk& device, SwapChainVk& swap_chain);
 
 VkShaderModule CreateShaderModule(VkDevice device, const uint32_t* code,
                                   size_t size);
+size_t GetVertexAttributeSize(VertexAttributeType attribute);
+VkFormat GetFormatFromVertexAttributeType(VertexAttributeType attribute);
+VkBufferUsageFlagBits BufferUsageToVulkan(BufferType usage);
 
 }  // namespace Renderer

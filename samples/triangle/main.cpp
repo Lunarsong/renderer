@@ -32,6 +32,11 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
   info.fragment.code_size = frag.size();
+  info.vertex_input.resize(1);
+  info.vertex_input[0].layout.push_back(
+      {Renderer::VertexAttributeType::kVec2, 0});
+  info.vertex_input[0].layout.push_back(
+      {Renderer::VertexAttributeType::kVec3, sizeof(float) * 2});
 
   pipeline = Renderer::CreateGraphicsPipeline(device, pass, info);
 
@@ -80,6 +85,14 @@ void Run() {
   for (uint32_t i = 0; i < swapchain_length; ++i) {
     framebuffers[i] = Renderer::CreateSwapChainFramebuffer(swapchain, i, pass);
   }
+  std::vector<float> triangle = {0.0,  -0.5, 1.0, 0.0, 0.0,  //
+                                 0.5,  0.5,  0.0, 1.0, 0.0,  //
+                                 -0.5, 0.5,  0.0, 0.0, 1.0};
+  Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kVertex, sizeof(float) * 3 * 5);
+  memcpy(Renderer::MapBuffer(vertex_buffer), triangle.data(),
+         sizeof(float) * 3 * 5);
+  Renderer::UnmapBuffer(vertex_buffer);
   Renderer::GraphicsPipeline pipeline = CreatePipeline(device, pass);
   Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
 
@@ -90,7 +103,8 @@ void Run() {
     Renderer::CmdBegin(it);
     Renderer::CmdBeginRenderPass(it, pass, framebuffers[i]);
     Renderer::CmdBindPipeline(it, pipeline);
-    Renderer::CmdDraw(it);
+    Renderer::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
+    Renderer::CmdDraw(it, 3);
     Renderer::CmdEndRenderPass(it);
     Renderer::CmdEnd(it);
     ++i;
@@ -156,6 +170,7 @@ void Run() {
   for (auto it : render_finished_semaphores) {
     Renderer::DestroySemaphore(it);
   }
+  Renderer::DestroyBuffer(vertex_buffer);
   Renderer::DestroyGraphicsPipeline(pipeline);
   Renderer::DestroyRenderPass(pass);
   Renderer::DestroySwapChain(swapchain);

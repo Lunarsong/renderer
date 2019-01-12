@@ -56,6 +56,12 @@ struct FramebufferVk {
   VkFramebuffer buffer;
 };
 
+struct BufferVk {
+  Device device;
+  VkBuffer buffer;
+  VmaAllocation allocation;
+};
+
 struct CommandPoolVk {
   Device device;
   VkCommandPool pool;

@@ -20,6 +20,7 @@ GenerationalVector<SwapChainVk> swapchains_;
 GenerationalVector<RenderPassVk> render_passes_;
 GenerationalVector<GraphicsPipelineVk> graphic_pipelines_;
 GenerationalVector<FramebufferVk> framebuffers_;
+GenerationalVector<BufferVk> buffers_;
 GenerationalVector<CommandPoolVk> command_pools_;
 GenerationalVector<CommandBufferVk> command_buffers_;
 GenerationalVector<SemaphoreVk> semaphores_;
@@ -340,11 +341,50 @@ GraphicsPipeline CreateGraphicsPipeline(
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
                                                     fragShaderStageInfo};
 
+  // Create the vertex binding description.
+  size_t num_vertex_attributes = 0;
+  std::vector<VkVertexInputBindingDescription> bindingDescriptions(
+      info.vertex_input.size());
+  uint32_t binding = 0;
+  for (const auto& vertex_binding : info.vertex_input) {
+    size_t binding_size = 0;
+    num_vertex_attributes += vertex_binding.layout.size();
+    for (const auto& vertex_attribute : vertex_binding.layout) {
+      binding_size += GetVertexAttributeSize(vertex_attribute.type);
+    }
+    bindingDescriptions[binding].binding = binding;
+    bindingDescriptions[binding].stride = binding_size;
+    bindingDescriptions[binding].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    ++binding;
+  }
+
+  // Create the vertex attributes descriptions.
+  std::vector<VkVertexInputAttributeDescription> attributeDescriptions(
+      num_vertex_attributes);
+  binding = 0;
+  uint32_t location = 0;
+  for (const auto& vertex_binding : info.vertex_input) {
+    size_t binding_size = 0;
+    for (const auto& vertex_attribute : vertex_binding.layout) {
+      attributeDescriptions[location].binding = binding;
+      attributeDescriptions[location].location = location;
+      attributeDescriptions[location].format =
+          GetFormatFromVertexAttributeType(vertex_attribute.type);
+      attributeDescriptions[location].offset = vertex_attribute.offset;
+      ++location;
+    }
+    ++binding;
+  }
+
   VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
   vertexInputInfo.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInputInfo.vertexBindingDescriptionCount = 0;
-  vertexInputInfo.vertexAttributeDescriptionCount = 0;
+  vertexInputInfo.vertexBindingDescriptionCount =
+      static_cast<uint32_t>(bindingDescriptions.size());
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
   inputAssembly.sType =
@@ -576,8 +616,27 @@ void CmdBindPipeline(CommandBuffer buffer_handle,
                     graphic_pipelines_[pipeline_handle].pipeline);
 }
 
-void CmdDraw(CommandBuffer buffer_handle) {
-  vkCmdDraw(command_buffers_[buffer_handle].buffer, 3, 1, 0, 0);
+void CmdBindVertexBuffers(CommandBuffer buffer, uint32_t first_binding,
+                          uint32_t binding_count, const Buffer* buffers,
+                          const uint64_t* offsets) {
+  static constexpr uint64_t kOffsets[256] = {0};
+  assert(binding_count <= 256);
+  if (!offsets) {
+    offsets = kOffsets;
+  }
+  VkBuffer vk_buffers[256];
+  for (uint32_t i = 0; i < binding_count; ++i) {
+    vk_buffers[i] = buffers_[buffers[i]].buffer;
+  }
+  vkCmdBindVertexBuffers(command_buffers_[buffer].buffer, first_binding,
+                         binding_count, vk_buffers, offsets);
+}
+
+void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,
+             uint32_t instance_count, uint32_t first_vertex,
+             uint32_t first_instance) {
+  vkCmdDraw(command_buffers_[buffer].buffer, vertex_count, instance_count,
+            first_vertex, first_instance);
 }
 
 Semaphore CreateSemaphore(Device device_handle) {
@@ -697,6 +756,47 @@ void QueuePresent(SwapChain swapchain_handle, uint32_t image,
   presentInfo.pImageIndices = &image;
   presentInfo.pResults = nullptr;  // Optional
   vkQueuePresentKHR(devices_[swapchain.device].present_queue, &presentInfo);
+}
+
+Buffer CreateBuffer(Device device, BufferType type, uint64_t size) {
+  auto& device_ref = devices_[device];
+  BufferVk buffer;
+  buffer.device = device;
+
+  VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+  bufferInfo.size = size;
+  bufferInfo.usage = BufferUsageToVulkan(type);
+  VmaAllocationCreateInfo allocInfo = {};
+  allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;  // VMA_MEMORY_USAGE_GPU_ONLY;
+  vmaCreateBuffer(device_ref.allocator, &bufferInfo, &allocInfo, &buffer.buffer,
+                  &buffer.allocation, nullptr);
+
+  return buffers_.Create(std::move(buffer));
+}
+
+void DestroyBuffer(Buffer buffer) {
+  auto& buffer_ref = buffers_[buffer];
+  auto& device_ref = devices_[buffer_ref.device];
+
+  vmaDestroyBuffer(device_ref.allocator, buffer_ref.buffer,
+                   buffer_ref.allocation);
+
+  buffers_.Destroy(buffer);
+}
+
+void* MapBuffer(Buffer buffer) {
+  auto& buffer_ref = buffers_[buffer];
+  auto& device_ref = devices_[buffer_ref.device];
+
+  void* mappedData;
+  vmaMapMemory(device_ref.allocator, buffer_ref.allocation, &mappedData);
+  return mappedData;
+}
+
+void UnmapBuffer(Buffer buffer) {
+  auto& buffer_ref = buffers_[buffer];
+  auto& device_ref = devices_[buffer_ref.device];
+  vmaUnmapMemory(device_ref.allocator, buffer_ref.allocation);
 }
 
 // TODO: Find a more elegant way to solve the surface problem?

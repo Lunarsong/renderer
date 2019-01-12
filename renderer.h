@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace Renderer {
 using HandleType = uint64_t;
@@ -12,10 +13,23 @@ using SwapChain = HandleType;
 using GraphicsPipeline = HandleType;
 using RenderPass = HandleType;
 using Framebuffer = HandleType;
+using Buffer = HandleType;
 using CommandPool = HandleType;
 using CommandBuffer = HandleType;
 using Semaphore = HandleType;
 using Fence = HandleType;
+
+enum class VertexAttributeType { kFloat, kVec2, kVec3, kVec4 };
+
+struct VertexAttribute {
+  VertexAttributeType type;
+  uint32_t offset;
+};
+using VertexLayout = std::vector<VertexAttribute>;
+struct VertexInputBinding {
+  VertexLayout layout;
+};
+using VertexInputBindings = std::vector<VertexInputBinding>;
 
 // Instance.
 Instance Create(const char* const* extensions = nullptr,
@@ -31,8 +45,6 @@ void DeviceWaitIdle(Device device);
 SwapChain CreateSwapChain(Device device, uint32_t width, uint32_t height);
 void DestroySwapChain(SwapChain swapchain);
 uint32_t GetSwapChainLength(SwapChain swapchain);
-Framebuffer CreateSwapChainFramebuffer(SwapChain swapchain, uint32_t index,
-                                       RenderPass pass);
 void AcquireNextImage(SwapChain swapchain, uint64_t timeout_ns,
                       Semaphore semaphore, uint32_t* out_image_index);
 
@@ -45,6 +57,7 @@ struct ShaderCreateInfo {
 struct GraphicsPipelineCreateInfo {
   ShaderCreateInfo vertex;
   ShaderCreateInfo fragment;
+  VertexInputBindings vertex_input;
 };
 GraphicsPipeline CreateGraphicsPipeline(Device device, RenderPass pass,
                                         const GraphicsPipelineCreateInfo& info);
@@ -55,7 +68,16 @@ RenderPass CreateRenderPass(Device device, SwapChain swapchain);
 void DestroyRenderPass(RenderPass pass);
 
 // Framebuffers.
+Framebuffer CreateSwapChainFramebuffer(SwapChain swapchain, uint32_t index,
+                                       RenderPass pass);
 void DestroyFramebuffer(Framebuffer buffer);
+
+// Buffers.
+enum class BufferType { kVertex, kIndex, kUniform };
+Buffer CreateBuffer(Device device, BufferType type, uint64_t size);
+void DestroyBuffer(Buffer buffer);
+void* MapBuffer(Buffer buffer);
+void UnmapBuffer(Buffer buffer);
 
 // Command pools.
 CommandPool CreateCommandPool(Device device);
@@ -70,7 +92,12 @@ void CmdBeginRenderPass(CommandBuffer buffer, RenderPass pass,
                         Framebuffer framebuffer);
 void CmdEndRenderPass(CommandBuffer buffer);
 void CmdBindPipeline(CommandBuffer buffer, GraphicsPipeline pipeline);
-void CmdDraw(CommandBuffer buffer);
+void CmdBindVertexBuffers(CommandBuffer buffer, uint32_t first_binding,
+                          uint32_t binding_count, const Buffer* buffers,
+                          const uint64_t* offsets = nullptr);
+void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,
+             uint32_t instance_count = 1, uint32_t first_vertex = 0,
+             uint32_t first_instance = 0);
 
 // Semaphores.
 Semaphore CreateSemaphore(Device);
