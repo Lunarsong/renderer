@@ -1,8 +1,10 @@
 #pragma once
 
+#define WIN32_LEAN_AND_MEAN
 #include <vulkan/vulkan.h>
 #include <vector>
 #include "renderer.h"
+#include "vk_mem_alloc.h"
 
 namespace Renderer {
 
@@ -26,6 +28,7 @@ struct DeviceVk {
   VkDevice device;
   VkQueue graphics_queue;
   VkQueue present_queue;
+  VmaAllocator allocator;
 };
 
 struct SwapChainVk {

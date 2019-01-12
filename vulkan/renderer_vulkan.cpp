@@ -7,6 +7,11 @@
 #include "detail/renderer_vulkan_detail.h"
 #include "generational/generational_vector.h"
 
+// Remove windows defined CreateSemaphore macro.
+#ifdef CreateSemaphore
+#undef CreateSemaphore
+#endif
+
 namespace Renderer {
 namespace {
 GenerationalVector<InstanceVk> instances_;
@@ -88,6 +93,13 @@ Device CreateDevice(Instance instance_handle) {
                    &device.graphics_queue);
   vkGetDeviceQueue(device.device, device_indices.presentation, 0,
                    &device.present_queue);
+
+  // Create Vulkan Memory Allocator.
+  VmaAllocatorCreateInfo allocatorInfo = {};
+  allocatorInfo.physicalDevice = physical_device;
+  allocatorInfo.device = device.device;
+  vmaCreateAllocator(&allocatorInfo, &device.allocator);
+
   return devices_.Create(std::move(device));
 }
 
@@ -214,6 +226,7 @@ void AcquireNextImage(SwapChain swapchain_handle, uint64_t timeout_ns,
 
 void DestroyDevice(Device device_handle) {
   auto& device = devices_[device_handle];
+  vmaDestroyAllocator(device.allocator);
   vkDestroyDevice(device.device, nullptr);
 }
 

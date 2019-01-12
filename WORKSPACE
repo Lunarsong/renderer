@@ -23,9 +23,15 @@ new_git_repository(
 )
 
 VK_SDK_PATH = "C:/VulkanSDK/1.1.92.1"
-
 new_local_repository(
     name = "vulkan",
     path = VK_SDK_PATH,
     build_file = "third_party/vulkan.BUILD",
+)
+
+new_git_repository(
+    name = "VulkanMemoryAllocator",
+    remote = "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git",
+    commit = "ae5c4661ecdff608b6d09704092a1cebbc5bc2ef",
+    build_file = "third_party/VulkanMemoryAllocator.BUILD",
 )

@@ -11,6 +11,7 @@ cc_library(
   copts = [],
   deps = [
     "@vulkan//:vulkan",
+    "@VulkanMemoryAllocator//:VulkanMemoryAllocator",
     "//:renderer",
     "//generational",
     "//generational:generational_vector",
