@@ -1,12 +1,10 @@
 cc_library(
-  name = "renderer",
+  name = "common",
   srcs = [
+    "util.cpp"
   ],
   hdrs = [
-    "renderer.h"
-  ],
-  copts = [],
-  deps = [
+    "util.h"
   ],
   visibility = ["//visibility:public"],
 )
