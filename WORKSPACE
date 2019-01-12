@@ -19,7 +19,7 @@ new_git_repository(
     name = "glfw",
     remote = "https://github.com/glfw/glfw.git",
     commit = "c90c7b97109db909577e3bf540b5f884422b7e14",
-    build_file = "glfw.BUILD",
+    build_file = "third_party/glfw.BUILD",
 )
 
 VK_SDK_PATH = "C:/VulkanSDK/1.1.92.1"
@@ -27,5 +27,5 @@ VK_SDK_PATH = "C:/VulkanSDK/1.1.92.1"
 new_local_repository(
     name = "vulkan",
     path = VK_SDK_PATH,
-    build_file = "vulkan.BUILD",
+    build_file = "third_party/vulkan.BUILD",
 )

@@ -1,4 +1,5 @@
 build --cxxopt="/std:c++latest"
 build --cxxopt="/MT"
 build --cxxopt="--std=c++17"
+build --incompatible_remove_native_git_repository=false
 run --experimental_enable_runfiles
