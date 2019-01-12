@@ -73,8 +73,10 @@ Framebuffer CreateSwapChainFramebuffer(SwapChain swapchain, uint32_t index,
 void DestroyFramebuffer(Framebuffer buffer);
 
 // Buffers.
+enum class MemoryUsage { kGpu, kCpu, kCpuToGpu, kGpuToCpu };
 enum class BufferType { kVertex, kIndex, kUniform };
-Buffer CreateBuffer(Device device, BufferType type, uint64_t size);
+Buffer CreateBuffer(Device device, BufferType type, uint64_t size,
+                    MemoryUsage memory_usage = MemoryUsage::kCpuToGpu);
 void DestroyBuffer(Buffer buffer);
 void* MapBuffer(Buffer buffer);
 void UnmapBuffer(Buffer buffer);
@@ -104,6 +106,13 @@ void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,
 void CmdDrawIndexed(CommandBuffer cmd, uint32_t index_count,
                     uint32_t instance_count = 1, uint32_t first_index = 0,
                     int32_t vertex_offset = 0, uint32_t first_instance = 0);
+struct BufferCopy {
+  uint64_t src_offset = 0;
+  uint64_t dst_offset = 0;
+  uint64_t size;
+};
+void CmdCopyBuffer(CommandBuffer cmd, Buffer src, Buffer dst,
+                   uint32_t region_count, const BufferCopy* regions);
 
 // Semaphores.
 Semaphore CreateSemaphore(Device);

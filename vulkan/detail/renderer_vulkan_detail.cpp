@@ -386,22 +386,52 @@ VkBufferUsageFlagBits BufferUsageToVulkan(BufferType usage) {
     default:
       throw std::runtime_error("Invalid buffer usage!");
   }
-  /*typedef enum VkBufferUsageFlagBits {
-    VK_BUFFER_USAGE_TRANSFER_SRC_BIT = 0x00000001,
-    VK_BUFFER_USAGE_TRANSFER_DST_BIT = 0x00000002,
-    VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT = 0x00000004,
-    VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT = 0x00000008,
-    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT = 0x00000010,
-    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT = 0x00000020,
-    VK_BUFFER_USAGE_INDEX_BUFFER_BIT = 0x00000040,
-    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT = 0x00000080,
-    VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT = 0x00000100,
-    VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT = 0x00000800,
-    VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT = 0x00001000,
-    VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
-    VK_BUFFER_USAGE_RAY_TRACING_BIT_NV = 0x00000400,
-    VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT = 0x00020000,
-} VkBufferUsageFlagBits;*/
 }
+
+VkBufferUsageFlagBits MemoryUsageToVulkan(MemoryUsage usage) {
+  switch (usage) {
+    case MemoryUsage::kCpu:
+      return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    case MemoryUsage::kGpu:
+      return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case MemoryUsage::kCpuToGpu:
+      return static_cast<VkBufferUsageFlagBits>(0);
+    case MemoryUsage::kGpuToCpu:
+      return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    default:
+      throw std::runtime_error("Invalid buffer usage!");
+  }
+}
+
+VmaMemoryUsage MemoryUsageToVulkanMemoryAllocator(MemoryUsage usage) {
+  switch (usage) {
+    case MemoryUsage::kCpu:
+      return VMA_MEMORY_USAGE_CPU_ONLY;
+    case MemoryUsage::kGpu:
+      return VMA_MEMORY_USAGE_GPU_ONLY;
+    case MemoryUsage::kCpuToGpu:
+      return VMA_MEMORY_USAGE_CPU_TO_GPU;
+    case MemoryUsage::kGpuToCpu:
+      return VMA_MEMORY_USAGE_GPU_TO_CPU;
+    default:
+      throw std::runtime_error("Invalid memory usage!");
+  }
+}
+/*typedef enum VkBufferUsageFlagBits {
+  VK_BUFFER_USAGE_TRANSFER_SRC_BIT = 0x00000001,
+  VK_BUFFER_USAGE_TRANSFER_DST_BIT = 0x00000002,
+  VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT = 0x00000004,
+  VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT = 0x00000008,
+  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT = 0x00000010,
+  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT = 0x00000020,
+  VK_BUFFER_USAGE_INDEX_BUFFER_BIT = 0x00000040,
+  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT = 0x00000080,
+  VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT = 0x00000100,
+  VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT = 0x00000800,
+  VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT = 0x00001000,
+  VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
+  VK_BUFFER_USAGE_RAY_TRACING_BIT_NV = 0x00000400,
+  VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT = 0x00020000,
+} VkBufferUsageFlagBits;*/
 
 }  // namespace Renderer

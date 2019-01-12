@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <stdexcept>
 
@@ -85,23 +86,48 @@ void Run() {
   for (uint32_t i = 0; i < swapchain_length; ++i) {
     framebuffers[i] = Renderer::CreateSwapChainFramebuffer(swapchain, i, pass);
   }
-  std::vector<float> triangle = {0.0,  -0.5, 1.0, 0.0, 0.0,  //
-                                 0.5,  0.5,  0.0, 1.0, 0.0,  //
-                                 -0.5, 0.5,  0.0, 0.0, 1.0};
-  Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kVertex, sizeof(float) * 3 * 5);
-  memcpy(Renderer::MapBuffer(vertex_buffer), triangle.data(),
-         sizeof(float) * 3 * 5);
-  Renderer::UnmapBuffer(vertex_buffer);
-
-  const uint32_t indices[] = {0, 1, 2};
-  Renderer::Buffer index_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kIndex, sizeof(uint32_t) * 3);
-  memcpy(Renderer::MapBuffer(index_buffer), indices, sizeof(uint32_t) * 3);
-  Renderer::UnmapBuffer(index_buffer);
 
   Renderer::GraphicsPipeline pipeline = CreatePipeline(device, pass);
   Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
+
+  std::vector<float> triangle = {-0.5, -0.5, 1.0, 0.0, 0.0,  //
+                                 0.5,  0.5,  0.0, 1.0, 0.0,  //
+                                 -0.5, 0.5,  0.0, 0.0, 1.0,
+                                 0.5,  -0.5, 0.0, 0.0, 1.0};
+  Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
+      Renderer::MemoryUsage::kGpu);
+
+  Renderer::Buffer staging_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
+      Renderer::MemoryUsage::kCpu);
+  memcpy(Renderer::MapBuffer(staging_buffer), triangle.data(),
+         sizeof(float) * 6 * 5);
+  Renderer::UnmapBuffer(staging_buffer);
+  Renderer::Fence staging_fence = Renderer::CreateFence(device);
+  Renderer::CommandBuffer staging_cmd =
+      Renderer::CreateCommandBuffer(command_pool);
+  Renderer::CmdBegin(staging_cmd);
+  Renderer::BufferCopy copy_region;
+  copy_region.size = sizeof(float) * 6 * 5;
+  Renderer::CmdCopyBuffer(staging_cmd, staging_buffer, vertex_buffer, 1,
+                          &copy_region);
+  Renderer::CmdEnd(staging_cmd);
+  Renderer::SubmitInfo staging_info;
+
+  staging_info.command_buffers = &staging_cmd;
+  staging_info.command_buffers_count = 1;
+  Renderer::QueueSubmit(device, staging_info, staging_fence);
+  Renderer::WaitForFences(&staging_fence, 1, true,
+                          std::numeric_limits<uint64_t>::max());
+  Renderer::DestroyBuffer(staging_buffer);
+  Renderer::DestroyFence(staging_fence);
+
+  const uint32_t indices[] = {0, 1, 2, 3, 1, 0};
+  Renderer::Buffer index_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kIndex, sizeof(uint32_t) * 6);
+  memcpy(Renderer::MapBuffer(index_buffer), indices, sizeof(uint32_t) * 6);
+  Renderer::UnmapBuffer(index_buffer);
 
   std::vector<Renderer::CommandBuffer> cmd_buffers(swapchain_length);
   int i = 0;
@@ -113,7 +139,7 @@ void Run() {
     Renderer::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
     Renderer::CmdBindIndexBuffer(it, index_buffer,
                                  Renderer::IndexType::kUInt32);
-    Renderer::CmdDrawIndexed(it, 3);
+    Renderer::CmdDrawIndexed(it, 6);
     Renderer::CmdEndRenderPass(it);
     Renderer::CmdEnd(it);
     ++i;
@@ -136,8 +162,15 @@ void Run() {
   }
 
   size_t current_frame = 0;
+  std::chrono::high_resolution_clock::time_point time =
+      std::chrono::high_resolution_clock::now();
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
+    std::chrono::high_resolution_clock::time_point current_time =
+        std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_time = current_time - time;
+    time = current_time;
+    double delta_seconds = elapsed_time.count();
 
     Renderer::WaitForFences(&in_flight_fences[current_frame], 1, true,
                             std::numeric_limits<uint64_t>::max());

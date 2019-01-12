@@ -652,6 +652,13 @@ void CmdDrawIndexed(CommandBuffer cmd, uint32_t index_count,
                    first_index, vertex_offset, first_instance);
 }
 
+void CmdCopyBuffer(CommandBuffer cmd, Buffer src, Buffer dst,
+                   uint32_t region_count, const BufferCopy* regions) {
+  vkCmdCopyBuffer(command_buffers_[cmd].buffer, buffers_[src].buffer,
+                  buffers_[dst].buffer, region_count,
+                  reinterpret_cast<const VkBufferCopy*>(regions));
+}
+
 Semaphore CreateSemaphore(Device device_handle) {
   auto& device = devices_[device_handle];
   SemaphoreVk semaphore;
@@ -771,16 +778,19 @@ void QueuePresent(SwapChain swapchain_handle, uint32_t image,
   vkQueuePresentKHR(devices_[swapchain.device].present_queue, &presentInfo);
 }
 
-Buffer CreateBuffer(Device device, BufferType type, uint64_t size) {
+Buffer CreateBuffer(Device device, BufferType type, uint64_t size,
+                    MemoryUsage memory_usage) {
   auto& device_ref = devices_[device];
   BufferVk buffer;
   buffer.device = device;
 
   VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
   bufferInfo.size = size;
-  bufferInfo.usage = BufferUsageToVulkan(type);
+  bufferInfo.usage =
+      BufferUsageToVulkan(type) | MemoryUsageToVulkan(memory_usage);
   VmaAllocationCreateInfo allocInfo = {};
-  allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;  // VMA_MEMORY_USAGE_GPU_ONLY;
+  allocInfo.usage = MemoryUsageToVulkanMemoryAllocator(memory_usage);
+  allocInfo.preferredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
   vmaCreateBuffer(device_ref.allocator, &bufferInfo, &allocInfo, &buffer.buffer,
                   &buffer.allocation, nullptr);
 

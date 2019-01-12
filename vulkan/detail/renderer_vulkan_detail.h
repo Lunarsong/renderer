@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include "vk_mem_alloc.h"
 #include "vulkan/renderer_vulkan.h"
 
 namespace Renderer {
@@ -56,5 +57,7 @@ VkShaderModule CreateShaderModule(VkDevice device, const uint32_t* code,
 size_t GetVertexAttributeSize(VertexAttributeType attribute);
 VkFormat GetFormatFromVertexAttributeType(VertexAttributeType attribute);
 VkBufferUsageFlagBits BufferUsageToVulkan(BufferType usage);
+VkBufferUsageFlagBits MemoryUsageToVulkan(MemoryUsage usage);
+VmaMemoryUsage MemoryUsageToVulkanMemoryAllocator(MemoryUsage usage);
 
 }  // namespace Renderer
