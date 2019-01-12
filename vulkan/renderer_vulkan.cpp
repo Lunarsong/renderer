@@ -616,7 +616,7 @@ void CmdBindPipeline(CommandBuffer buffer_handle,
                     graphic_pipelines_[pipeline_handle].pipeline);
 }
 
-void CmdBindVertexBuffers(CommandBuffer buffer, uint32_t first_binding,
+void CmdBindVertexBuffers(CommandBuffer cmd, uint32_t first_binding,
                           uint32_t binding_count, const Buffer* buffers,
                           const uint64_t* offsets) {
   static constexpr uint64_t kOffsets[256] = {0};
@@ -628,8 +628,14 @@ void CmdBindVertexBuffers(CommandBuffer buffer, uint32_t first_binding,
   for (uint32_t i = 0; i < binding_count; ++i) {
     vk_buffers[i] = buffers_[buffers[i]].buffer;
   }
-  vkCmdBindVertexBuffers(command_buffers_[buffer].buffer, first_binding,
+  vkCmdBindVertexBuffers(command_buffers_[cmd].buffer, first_binding,
                          binding_count, vk_buffers, offsets);
+}
+
+void CmdBindIndexBuffer(CommandBuffer cmd, Buffer buffer, IndexType type,
+                        uint64_t offset) {
+  vkCmdBindIndexBuffer(command_buffers_[cmd].buffer, buffers_[buffer].buffer,
+                       offset, static_cast<VkIndexType>(type));
 }
 
 void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,
@@ -637,6 +643,13 @@ void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,
              uint32_t first_instance) {
   vkCmdDraw(command_buffers_[buffer].buffer, vertex_count, instance_count,
             first_vertex, first_instance);
+}
+
+void CmdDrawIndexed(CommandBuffer cmd, uint32_t index_count,
+                    uint32_t instance_count, uint32_t first_index,
+                    int32_t vertex_offset, uint32_t first_instance) {
+  vkCmdDrawIndexed(command_buffers_[cmd].buffer, index_count, instance_count,
+                   first_index, vertex_offset, first_instance);
 }
 
 Semaphore CreateSemaphore(Device device_handle) {

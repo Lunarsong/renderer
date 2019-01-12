@@ -95,9 +95,15 @@ void CmdBindPipeline(CommandBuffer buffer, GraphicsPipeline pipeline);
 void CmdBindVertexBuffers(CommandBuffer buffer, uint32_t first_binding,
                           uint32_t binding_count, const Buffer* buffers,
                           const uint64_t* offsets = nullptr);
+enum class IndexType { kUInt16 = 0, kUInt32 = 1 };
+void CmdBindIndexBuffer(CommandBuffer cmd, Buffer buffer, IndexType type,
+                        uint64_t offset = 0);
 void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,
              uint32_t instance_count = 1, uint32_t first_vertex = 0,
              uint32_t first_instance = 0);
+void CmdDrawIndexed(CommandBuffer cmd, uint32_t index_count,
+                    uint32_t instance_count = 1, uint32_t first_index = 0,
+                    int32_t vertex_offset = 0, uint32_t first_instance = 0);
 
 // Semaphores.
 Semaphore CreateSemaphore(Device);

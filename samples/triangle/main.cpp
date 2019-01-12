@@ -93,6 +93,13 @@ void Run() {
   memcpy(Renderer::MapBuffer(vertex_buffer), triangle.data(),
          sizeof(float) * 3 * 5);
   Renderer::UnmapBuffer(vertex_buffer);
+
+  const uint32_t indices[] = {0, 1, 2};
+  Renderer::Buffer index_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kIndex, sizeof(uint32_t) * 3);
+  memcpy(Renderer::MapBuffer(index_buffer), indices, sizeof(uint32_t) * 3);
+  Renderer::UnmapBuffer(index_buffer);
+
   Renderer::GraphicsPipeline pipeline = CreatePipeline(device, pass);
   Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
 
@@ -104,7 +111,9 @@ void Run() {
     Renderer::CmdBeginRenderPass(it, pass, framebuffers[i]);
     Renderer::CmdBindPipeline(it, pipeline);
     Renderer::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
-    Renderer::CmdDraw(it, 3);
+    Renderer::CmdBindIndexBuffer(it, index_buffer,
+                                 Renderer::IndexType::kUInt32);
+    Renderer::CmdDrawIndexed(it, 3);
     Renderer::CmdEndRenderPass(it);
     Renderer::CmdEnd(it);
     ++i;
@@ -170,6 +179,7 @@ void Run() {
   for (auto it : render_finished_semaphores) {
     Renderer::DestroySemaphore(it);
   }
+  Renderer::DestroyBuffer(index_buffer);
   Renderer::DestroyBuffer(vertex_buffer);
   Renderer::DestroyGraphicsPipeline(pipeline);
   Renderer::DestroyRenderPass(pass);
