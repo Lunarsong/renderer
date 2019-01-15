@@ -25,6 +25,8 @@ GenerationalVector<CommandPoolVk> command_pools_;
 GenerationalVector<CommandBufferVk> command_buffers_;
 GenerationalVector<SemaphoreVk> semaphores_;
 GenerationalVector<FenceVk> fences_;
+GenerationalVector<DescriptorSetLayoutVk> descriptor_set_layouts_;
+GenerationalVector<DescriptorSetPoolVk> descriptor_set_pools_;
 }  // namespace
 
 Instance Create(const char* const* extensions, uint32_t extensions_count) {
@@ -311,6 +313,35 @@ void DestroyRenderPass(RenderPass pass_handle) {
   render_passes_.Destroy(pass_handle);
 }
 
+PipelineLayout CreatePipelineLayout(
+    Device device, const std::vector<DescriptorSetLayout>& info) {
+  assert(sizeof(VkPipelineLayout) == sizeof(PipelineLayout));
+  VkPipelineLayout layout;
+
+  VkDescriptorSetLayout vk_layouts[256];
+  assert(info.size() <= 256);
+  for (size_t i = 0; i < info.size(); ++i) {
+    vk_layouts[i] = descriptor_set_layouts_[info[i]].layout;
+  }
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = info.size();
+  pipelineLayoutInfo.pSetLayouts = vk_layouts;       // Optional
+  pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
+  pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
+  if (vkCreatePipelineLayout(devices_[device].device, &pipelineLayoutInfo,
+                             nullptr, &layout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
+  return reinterpret_cast<PipelineLayout>(layout);
+}
+
+void DestroyPipelineLayout(Device device, PipelineLayout layout) {
+  vkDestroyPipelineLayout(devices_[device].device,
+                          reinterpret_cast<VkPipelineLayout>(layout), nullptr);
+}
+
 GraphicsPipeline CreateGraphicsPipeline(
     Device device_handle, RenderPass pass_handle,
     const GraphicsPipelineCreateInfo& info) {
@@ -466,17 +497,6 @@ GraphicsPipeline CreateGraphicsPipeline(
   dynamicState.dynamicStateCount = 2;
   dynamicState.pDynamicStates = dynamicStates;
 
-  VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = 0;             // Optional
-  pipelineLayoutInfo.pSetLayouts = nullptr;          // Optional
-  pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
-  pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
-  if (vkCreatePipelineLayout(device.device, &pipelineLayoutInfo, nullptr,
-                             &pipeline.layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
-
   VkGraphicsPipelineCreateInfo pipelineInfo = {};
   pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipelineInfo.stageCount = 2;
@@ -489,7 +509,7 @@ GraphicsPipeline CreateGraphicsPipeline(
   pipelineInfo.pDepthStencilState = nullptr;  // Optional
   pipelineInfo.pColorBlendState = &colorBlending;
   pipelineInfo.pDynamicState = nullptr;  // Optional
-  pipelineInfo.layout = pipeline.layout;
+  pipelineInfo.layout = reinterpret_cast<VkPipelineLayout>(info.layout);
   pipelineInfo.renderPass = pass.pass;
   pipelineInfo.subpass = 0;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;  // Optional
@@ -511,7 +531,6 @@ void DestroyGraphicsPipeline(GraphicsPipeline pipeline_handle) {
   auto& pipeline = graphic_pipelines_[pipeline_handle];
   auto& device = devices_[pipeline.device];
   vkDestroyPipeline(device.device, pipeline.pipeline, nullptr);
-  vkDestroyPipelineLayout(device.device, pipeline.layout, nullptr);
   graphic_pipelines_.Destroy(pipeline_handle);
 }
 
@@ -636,6 +655,18 @@ void CmdBindIndexBuffer(CommandBuffer cmd, Buffer buffer, IndexType type,
                         uint64_t offset) {
   vkCmdBindIndexBuffer(command_buffers_[cmd].buffer, buffers_[buffer].buffer,
                        offset, static_cast<VkIndexType>(type));
+}
+
+void CmdBindDescriptorSets(CommandBuffer cmd, int type, PipelineLayout layout,
+                           uint32_t first, uint32_t count,
+                           const DescriptorSet* sets,
+                           uint32_t dynamic_sets_count,
+                           const uint32_t* dynamic_sets_offsets) {
+  vkCmdBindDescriptorSets(command_buffers_[cmd].buffer,
+                          static_cast<VkPipelineBindPoint>(type),
+                          reinterpret_cast<VkPipelineLayout>(layout), first,
+                          count, reinterpret_cast<const VkDescriptorSet*>(sets),
+                          dynamic_sets_count, dynamic_sets_offsets);
 }
 
 void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,
@@ -820,6 +851,148 @@ void UnmapBuffer(Buffer buffer) {
   auto& buffer_ref = buffers_[buffer];
   auto& device_ref = devices_[buffer_ref.device];
   vmaUnmapMemory(device_ref.allocator, buffer_ref.allocation);
+}
+
+DescriptorSetLayout CreateDescriptorSetLayout(
+    Device device, const DescriptorSetLayoutCreateInfo& info) {
+  DescriptorSetLayoutVk layout;
+  layout.device = devices_[device].device;
+
+  std::vector<VkDescriptorSetLayoutBinding> vk_bindings(info.bindings.size());
+  for (uint32_t binding = 0;
+       binding < static_cast<uint32_t>(info.bindings.size()); ++binding) {
+    VkDescriptorSetLayoutBinding& vk_binding = vk_bindings[binding];
+    const auto& info_binding = info.bindings[binding];
+    vk_binding.binding = binding;
+    vk_binding.descriptorType =
+        static_cast<VkDescriptorType>(info_binding.type);
+    vk_binding.descriptorCount = info_binding.count;
+    vk_binding.stageFlags =
+        static_cast<VkShaderStageFlags>(info_binding.stages);
+    vk_binding.pImmutableSamplers = nullptr;
+  }
+  VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+  layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  layoutInfo.bindingCount = static_cast<uint32_t>(vk_bindings.size());
+  layoutInfo.pBindings = vk_bindings.data();
+
+  if (vkCreateDescriptorSetLayout(layout.device, &layoutInfo, nullptr,
+                                  &layout.layout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create descriptor set layout!");
+  }
+  return descriptor_set_layouts_.Create(std::move(layout));
+}
+
+void DestroyDescriptorSetLayout(DescriptorSetLayout layout) {
+  auto& ref = descriptor_set_layouts_[layout];
+  vkDestroyDescriptorSetLayout(ref.device, ref.layout, nullptr);
+  descriptor_set_layouts_.Destroy(layout);
+}
+
+DescriptorSetPool CreateDescriptorSetPool(
+    Device device, const CreateDescriptorSetPoolCreateInfo& info) {
+  DescriptorSetPoolVk pool;
+  pool.device = devices_[device].device;
+
+  // Create the Vulkan pool.
+  VkDescriptorPoolCreateInfo poolInfo = {};
+  poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  poolInfo.poolSizeCount = static_cast<uint32_t>(info.pools.size());
+  poolInfo.pPoolSizes =
+      reinterpret_cast<const VkDescriptorPoolSize*>(info.pools.data());
+  poolInfo.maxSets = info.max_sets;
+  if (vkCreateDescriptorPool(pool.device, &poolInfo, nullptr, &pool.pool) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to create descriptor pool!");
+  }
+
+  return descriptor_set_pools_.Create(std::move(pool));
+}
+
+void DestroyDescriptorSetPool(DescriptorSetPool pool) {
+  auto& ref = descriptor_set_pools_[pool];
+  vkDestroyDescriptorPool(ref.device, ref.pool, nullptr);
+  descriptor_set_pools_.Destroy(pool);
+}
+
+void AllocateDescriptorSets(DescriptorSetPool pool,
+                            const std::vector<DescriptorSetLayout>& layouts,
+                            DescriptorSet* sets) {
+  // Copy the vulkan layouts.
+  std::vector<VkDescriptorSetLayout> vk_layouts(layouts.size());
+  for (size_t i = 0; i < layouts.size(); ++i) {
+    vk_layouts[i] = descriptor_set_layouts_[layouts[i]].layout;
+  }
+
+  // Create the vulkan set.
+  auto& pool_ref = descriptor_set_pools_[pool];
+  VkDescriptorSetAllocateInfo allocInfo = {};
+  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocInfo.descriptorPool = pool_ref.pool;
+  allocInfo.descriptorSetCount = static_cast<uint32_t>(vk_layouts.size());
+  allocInfo.pSetLayouts = vk_layouts.data();
+
+  assert(sizeof(VkDescriptorSet) == sizeof(DescriptorSet));
+
+  if (vkAllocateDescriptorSets(pool_ref.device, &allocInfo,
+                               reinterpret_cast<VkDescriptorSet*>(sets)) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to allocate descriptor sets!");
+  }
+}
+
+/*
+struct DescriptorBufferInfo {
+  Buffer buffer;
+  uint64_t offset;
+  uint64_t range;
+};
+struct WriteDescriptorSet {
+  DescriptorSet set;
+  uint32_t binding;
+  uint32_t dst_array_element = 0;
+  uint32_t descriptor_count = 0;
+  DescriptorType type;
+  const DescriptorImageInfo* images = nullptr;
+  const DescriptorBufferInfo* buffers = nullptr;
+};
+*/
+void UpdateDescriptorSets(Device device, uint32_t descriptor_write_count,
+                          WriteDescriptorSet* descriptor_writes,
+                          uint32_t descriptor_copy_count,
+                          void* descriptor_copies) {
+  VkDescriptorBufferInfo buffers[20];
+  VkWriteDescriptorSet write_sets[10] = {};
+  assert(descriptor_copy_count <= 10);
+  uint32_t buffer_offset = 0;
+  for (uint32_t i = 0; i < descriptor_write_count; ++i) {
+    write_sets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_sets[i].dstSet =
+        reinterpret_cast<VkDescriptorSet>(descriptor_writes[i].set);
+    write_sets[i].dstBinding = descriptor_writes[i].binding;
+    write_sets[i].dstArrayElement = descriptor_writes[i].dst_array_element;
+    write_sets[i].descriptorType =
+        static_cast<VkDescriptorType>(descriptor_writes[i].type);
+    write_sets[i].descriptorCount = descriptor_writes[i].descriptor_count;
+    write_sets[i].pImageInfo = nullptr;
+    write_sets[i].pTexelBufferView = nullptr;
+    write_sets[i].pBufferInfo = nullptr;
+    if (descriptor_writes[i].type == DescriptorType::kUniformBuffer) {
+      assert(buffer_offset <= 20);
+      write_sets[i].pBufferInfo = &buffers[buffer_offset];
+      for (uint32_t j = 0; j < descriptor_writes[i].descriptor_count; ++j) {
+        const auto& buffer = descriptor_writes[i].buffers[j];
+        buffers[buffer_offset].buffer = buffers_[buffer.buffer].buffer;
+        buffers[buffer_offset].offset = buffer.offset;
+        buffers[buffer_offset].range = buffer.range;
+        ++buffer_offset;
+      }
+    } else {
+      assert(false);
+    }
+  }
+  vkUpdateDescriptorSets(devices_[device].device, descriptor_write_count,
+                         write_sets, 0, nullptr);
 }
 
 // TODO: Find a more elegant way to solve the surface problem?

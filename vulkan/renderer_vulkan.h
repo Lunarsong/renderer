@@ -47,7 +47,6 @@ struct RenderPassVk {
 
 struct GraphicsPipelineVk {
   Device device;
-  VkPipelineLayout layout;
   VkPipeline pipeline;
 };
 
@@ -81,6 +80,16 @@ struct SemaphoreVk {
 struct FenceVk {
   VkDevice device;
   VkFence fence;
+};
+
+struct DescriptorSetLayoutVk {
+  VkDevice device;
+  VkDescriptorSetLayout layout;
+};
+
+struct DescriptorSetPoolVk {
+  VkDevice device;
+  VkDescriptorPool pool;
 };
 
 }  // namespace Renderer

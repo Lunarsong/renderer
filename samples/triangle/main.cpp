@@ -8,6 +8,270 @@
 #include "renderer.h"
 #include "samples/common/util.h"
 
+void CreateVkSurfance(Renderer::Instance instance, GLFWwindow* window);
+Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
+                                          Renderer::RenderPass pass,
+                                          Renderer::PipelineLayout layout);
+GLFWwindow* InitWindow();
+void Shutdown(GLFWwindow* window);
+
+void Run() {
+  std::cout << "Hello Vulkan" << std::endl;
+
+  // Create a window.
+  GLFWwindow* window = InitWindow();
+
+  // Create the renderer instance (in this case Vulkan).
+  uint32_t glfwExtensionCount = 0;
+  const char** glfwExtensions;
+  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+  Renderer::Instance instance =
+      Renderer::Create(glfwExtensions, glfwExtensionCount);
+
+  // Hack. Figure out how to hide this. Create a surface.
+  CreateVkSurfance(instance, window);
+
+  // Create a device and swapchain.
+  Renderer::Device device = Renderer::CreateDevice(instance);
+  Renderer::SwapChain swapchain = Renderer::CreateSwapChain(device, 1980, 1200);
+
+  // Create the render pass and frame buffers.
+  Renderer::RenderPass pass = Renderer::CreateRenderPass(device, swapchain);
+  const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain);
+  std::vector<Renderer::Framebuffer> framebuffers(swapchain_length);
+  for (uint32_t i = 0; i < swapchain_length; ++i) {
+    framebuffers[i] = Renderer::CreateSwapChainFramebuffer(swapchain, i, pass);
+  }
+
+  Renderer::DescriptorSetLayoutCreateInfo descriptor_layout_info = {
+      {{Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kVertexBit},
+       {Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kFragmentBit}}};
+  Renderer::DescriptorSetLayout descriptor_layout =
+      Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
+
+  // Create a pipeline.
+  Renderer::PipelineLayout pipeline_layout =
+      Renderer::CreatePipelineLayout(device, {{descriptor_layout}});
+  Renderer::GraphicsPipeline pipeline =
+      CreatePipeline(device, pass, pipeline_layout);
+
+  Renderer::CreateDescriptorSetPoolCreateInfo pool_info = {
+      {{Renderer::DescriptorType::kUniformBuffer,
+        static_cast<uint32_t>(framebuffers.size()) * 2}},
+      /*max_sets=*/static_cast<uint32_t>(framebuffers.size())};
+  Renderer::DescriptorSetPool set_pool =
+      Renderer::CreateDescriptorSetPool(device, pool_info);
+
+  std::vector<Renderer::DescriptorSet> descriptor_sets(framebuffers.size());
+  Renderer::AllocateDescriptorSets(set_pool,
+                                   std::vector<Renderer::DescriptorSetLayout>(
+                                       framebuffers.size(), descriptor_layout),
+                                   descriptor_sets.data());
+
+  // Create a command pool.
+  Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
+
+  // Create the vertex and index buffers. Use staging buffer for the vertex
+  // buffer, just for fun.
+
+  std::vector<float> quad = {-0.5, -0.5, 1.0, 0.0, 0.0,  //
+                             0.5,  0.5,  0.0, 0.0, 1.0,  //
+                             -0.5, 0.5,  0.0, 1.0, 0.0,  //
+                             0.5,  -0.5, 1.0, 1.0, 1.0};
+  Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
+      Renderer::MemoryUsage::kGpu);
+
+  Renderer::Buffer staging_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
+      Renderer::MemoryUsage::kCpu);
+  memcpy(Renderer::MapBuffer(staging_buffer), quad.data(),
+         sizeof(float) * 6 * 5);
+  Renderer::UnmapBuffer(staging_buffer);
+  Renderer::Fence staging_fence = Renderer::CreateFence(device);
+  Renderer::CommandBuffer staging_cmd =
+      Renderer::CreateCommandBuffer(command_pool);
+  Renderer::CmdBegin(staging_cmd);
+  Renderer::BufferCopy copy_region;
+  copy_region.size = sizeof(float) * 6 * 5;
+  Renderer::CmdCopyBuffer(staging_cmd, staging_buffer, vertex_buffer, 1,
+                          &copy_region);
+  Renderer::CmdEnd(staging_cmd);
+  Renderer::SubmitInfo staging_info;
+
+  staging_info.command_buffers = &staging_cmd;
+  staging_info.command_buffers_count = 1;
+  Renderer::QueueSubmit(device, staging_info, staging_fence);
+  Renderer::WaitForFences(&staging_fence, 1, true,
+                          std::numeric_limits<uint64_t>::max());
+  Renderer::DestroyBuffer(staging_buffer);
+  Renderer::DestroyFence(staging_fence);
+
+  // Create the index buffer (no staging).
+  const uint32_t indices[] = {0, 1, 2, 3, 1, 0};
+  Renderer::Buffer index_buffer = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kIndex, sizeof(uint32_t) * 6);
+  memcpy(Renderer::MapBuffer(index_buffer), indices, sizeof(uint32_t) * 6);
+  Renderer::UnmapBuffer(index_buffer);
+
+  float offsets[] = {0.5f, 0.0f, 0.0f, 0.0f};
+  Renderer::Buffer uniform_buffer_offset = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kUniform, sizeof(float) * 4);
+  memcpy(Renderer::MapBuffer(uniform_buffer_offset), offsets,
+         sizeof(float) * 4);
+  Renderer::UnmapBuffer(uniform_buffer_offset);
+
+  float color[] = {0.5f, 0.5f, 0.5f, 1.0f};
+  Renderer::Buffer uniform_buffer_color = Renderer::CreateBuffer(
+      device, Renderer::BufferType::kUniform, sizeof(float) * 4);
+  memcpy(Renderer::MapBuffer(uniform_buffer_color), color, sizeof(float) * 4);
+  Renderer::UnmapBuffer(uniform_buffer_color);
+
+  for (auto it : descriptor_sets) {
+    Renderer::WriteDescriptorSet write[2];
+    Renderer::DescriptorBufferInfo offset_buffer;
+    offset_buffer.buffer = uniform_buffer_offset;
+    offset_buffer.range = sizeof(float) * 4;
+    write[0].set = it;
+    write[0].binding = 0;
+    write[0].buffers = &offset_buffer;
+    write[0].descriptor_count = 1;
+    write[0].type = Renderer::DescriptorType::kUniformBuffer;
+
+    Renderer::DescriptorBufferInfo color_buffer;
+    color_buffer.buffer = uniform_buffer_color;
+    color_buffer.range = sizeof(float) * 4;
+    write[1].set = it;
+    write[1].binding = 1;
+    write[1].buffers = &color_buffer;
+    write[1].descriptor_count = 1;
+    write[1].type = Renderer::DescriptorType::kUniformBuffer;
+
+    Renderer::UpdateDescriptorSets(device, 2, write);
+  }
+
+  // Command buffers for every image in the swapchain.
+  std::vector<Renderer::CommandBuffer> cmd_buffers(swapchain_length);
+  int i = 0;
+  for (auto& it : cmd_buffers) {
+    it = Renderer::CreateCommandBuffer(command_pool);
+    Renderer::CmdBegin(it);
+    Renderer::CmdBeginRenderPass(it, pass, framebuffers[i]);
+    Renderer::CmdBindPipeline(it, pipeline);
+    Renderer::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
+    Renderer::CmdBindIndexBuffer(it, index_buffer,
+                                 Renderer::IndexType::kUInt32);
+    Renderer::CmdBindDescriptorSets(it, 0, pipeline_layout, 0, 1,
+                                    &descriptor_sets[i]);
+    Renderer::CmdDrawIndexed(it, 6);
+    Renderer::CmdEndRenderPass(it);
+    Renderer::CmdEnd(it);
+    ++i;
+  }
+
+  // Allow drawing 2 frames at once, synchronized by their own semaphores and
+  // fences.
+  static constexpr size_t kMaxFramesInFlight = 2;
+  std::vector<Renderer::Semaphore> image_available_semaphores(
+      kMaxFramesInFlight);
+  for (auto& it : image_available_semaphores) {
+    it = Renderer::CreateSemaphore(device);
+  }
+  std::vector<Renderer::Semaphore> render_finished_semaphores(
+      kMaxFramesInFlight);
+  for (auto& it : render_finished_semaphores) {
+    it = Renderer::CreateSemaphore(device);
+  }
+  std::vector<Renderer::Fence> in_flight_fences(kMaxFramesInFlight);
+  for (auto& it : in_flight_fences) {
+    it = Renderer::CreateFence(device, true);
+  }
+
+  // Main loop.
+  size_t current_frame = 0;
+  std::chrono::high_resolution_clock::time_point time =
+      std::chrono::high_resolution_clock::now();
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+
+    // Get the delta time.
+    std::chrono::high_resolution_clock::time_point current_time =
+        std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_time = current_time - time;
+    time = current_time;
+    double delta_seconds = elapsed_time.count();
+
+    // If the CPU is ahead, wait on fences.
+    Renderer::WaitForFences(&in_flight_fences[current_frame], 1, true,
+                            std::numeric_limits<uint64_t>::max());
+    Renderer::ResetFences(&in_flight_fences[current_frame], 1);
+
+    // Prepare the next swapchain frame buffer for rendering.
+    uint32_t imageIndex;
+    Renderer::AcquireNextImage(swapchain, std::numeric_limits<uint64_t>::max(),
+                               image_available_semaphores[current_frame],
+                               &imageIndex);
+
+    // Set the semaphores and command buffer for the current frame buffer.
+    Renderer::SubmitInfo submit_info;
+    submit_info.wait_semaphores = &image_available_semaphores[current_frame];
+    submit_info.wait_semaphores_count = 1;
+    submit_info.command_buffers = &cmd_buffers[imageIndex];
+    submit_info.command_buffers_count = 1;
+    submit_info.signal_semaphores = &render_finished_semaphores[current_frame];
+    submit_info.signal_semaphores_count = 1;
+    Renderer::QueueSubmit(device, submit_info, in_flight_fences[current_frame]);
+
+    // Present.
+    Renderer::PresentInfo present_info;
+    present_info.wait_semaphores = &render_finished_semaphores[current_frame];
+    present_info.wait_semaphores_count = 1;
+    Renderer::QueuePresent(swapchain, imageIndex, present_info);
+    current_frame = (current_frame + 1) % kMaxFramesInFlight;
+  }
+
+  // Shutdown: Destroy everything.
+  Renderer::DeviceWaitIdle(device);
+  Renderer::DestroyCommandPool(command_pool);
+  for (auto it : framebuffers) {
+    Renderer::DestroyFramebuffer(it);
+  }
+
+  for (auto& it : in_flight_fences) {
+    Renderer::DestroyFence(it);
+  }
+  for (auto it : image_available_semaphores) {
+    Renderer::DestroySemaphore(it);
+  }
+  for (auto it : render_finished_semaphores) {
+    Renderer::DestroySemaphore(it);
+  }
+  Renderer::DestroyDescriptorSetPool(set_pool);
+  Renderer::DestroyBuffer(uniform_buffer_color);
+  Renderer::DestroyBuffer(uniform_buffer_offset);
+  Renderer::DestroyBuffer(index_buffer);
+  Renderer::DestroyBuffer(vertex_buffer);
+  Renderer::DestroyGraphicsPipeline(pipeline);
+  Renderer::DestroyPipelineLayout(device, pipeline_layout);
+  Renderer::DestroyDescriptorSetLayout(descriptor_layout);
+  Renderer::DestroyRenderPass(pass);
+  Renderer::DestroySwapChain(swapchain);
+  Renderer::DestroyDevice(device);
+  Renderer::Destroy(instance);
+  Shutdown(window);
+}
+
+int main() {
+  try {
+    Run();
+  } catch (const std::exception& e) {
+    std::cerr << e.what() << std::endl;
+    return EXIT_FAILURE;
+  }
+  return 0;
+}
+
+// Support functions.
 namespace Renderer {
 extern VkInstance GetVkInstance(Instance instance);
 void SetSurface(Instance instance, VkSurfaceKHR surface);
@@ -23,7 +287,8 @@ void CreateVkSurfance(Renderer::Instance instance, GLFWwindow* window) {
 }
 
 Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
-                                          Renderer::RenderPass pass) {
+                                          Renderer::RenderPass pass,
+                                          Renderer::PipelineLayout layout) {
   Renderer::GraphicsPipeline pipeline = Renderer::kInvalidHandle;
 
   Renderer::GraphicsPipelineCreateInfo info;
@@ -38,6 +303,7 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
       {Renderer::VertexAttributeType::kVec2, 0});
   info.vertex_input[0].layout.push_back(
       {Renderer::VertexAttributeType::kVec3, sizeof(float) * 2});
+  info.layout = layout;
 
   pipeline = Renderer::CreateGraphicsPipeline(device, pass, info);
 
@@ -64,170 +330,4 @@ GLFWwindow* InitWindow() {
 void Shutdown(GLFWwindow* window) {
   glfwDestroyWindow(window);
   glfwTerminate();
-}
-
-void Run() {
-  std::cout << "Hello Vulkan" << std::endl;
-
-  GLFWwindow* window = InitWindow();
-
-  uint32_t glfwExtensionCount = 0;
-  const char** glfwExtensions;
-  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-  Renderer::Instance instance =
-      Renderer::Create(glfwExtensions, glfwExtensionCount);
-  CreateVkSurfance(instance, window);
-  Renderer::Device device = Renderer::CreateDevice(instance);
-  Renderer::SwapChain swapchain = Renderer::CreateSwapChain(device, 1980, 1200);
-  Renderer::RenderPass pass = Renderer::CreateRenderPass(device, swapchain);
-  const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain);
-  std::vector<Renderer::Framebuffer> framebuffers(swapchain_length);
-  for (uint32_t i = 0; i < swapchain_length; ++i) {
-    framebuffers[i] = Renderer::CreateSwapChainFramebuffer(swapchain, i, pass);
-  }
-
-  Renderer::GraphicsPipeline pipeline = CreatePipeline(device, pass);
-  Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
-
-  std::vector<float> triangle = {-0.5, -0.5, 1.0, 0.0, 0.0,  //
-                                 0.5,  0.5,  0.0, 1.0, 0.0,  //
-                                 -0.5, 0.5,  0.0, 0.0, 1.0,
-                                 0.5,  -0.5, 0.0, 0.0, 1.0};
-  Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
-      Renderer::MemoryUsage::kGpu);
-
-  Renderer::Buffer staging_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
-      Renderer::MemoryUsage::kCpu);
-  memcpy(Renderer::MapBuffer(staging_buffer), triangle.data(),
-         sizeof(float) * 6 * 5);
-  Renderer::UnmapBuffer(staging_buffer);
-  Renderer::Fence staging_fence = Renderer::CreateFence(device);
-  Renderer::CommandBuffer staging_cmd =
-      Renderer::CreateCommandBuffer(command_pool);
-  Renderer::CmdBegin(staging_cmd);
-  Renderer::BufferCopy copy_region;
-  copy_region.size = sizeof(float) * 6 * 5;
-  Renderer::CmdCopyBuffer(staging_cmd, staging_buffer, vertex_buffer, 1,
-                          &copy_region);
-  Renderer::CmdEnd(staging_cmd);
-  Renderer::SubmitInfo staging_info;
-
-  staging_info.command_buffers = &staging_cmd;
-  staging_info.command_buffers_count = 1;
-  Renderer::QueueSubmit(device, staging_info, staging_fence);
-  Renderer::WaitForFences(&staging_fence, 1, true,
-                          std::numeric_limits<uint64_t>::max());
-  Renderer::DestroyBuffer(staging_buffer);
-  Renderer::DestroyFence(staging_fence);
-
-  const uint32_t indices[] = {0, 1, 2, 3, 1, 0};
-  Renderer::Buffer index_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kIndex, sizeof(uint32_t) * 6);
-  memcpy(Renderer::MapBuffer(index_buffer), indices, sizeof(uint32_t) * 6);
-  Renderer::UnmapBuffer(index_buffer);
-
-  std::vector<Renderer::CommandBuffer> cmd_buffers(swapchain_length);
-  int i = 0;
-  for (auto& it : cmd_buffers) {
-    it = Renderer::CreateCommandBuffer(command_pool);
-    Renderer::CmdBegin(it);
-    Renderer::CmdBeginRenderPass(it, pass, framebuffers[i]);
-    Renderer::CmdBindPipeline(it, pipeline);
-    Renderer::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
-    Renderer::CmdBindIndexBuffer(it, index_buffer,
-                                 Renderer::IndexType::kUInt32);
-    Renderer::CmdDrawIndexed(it, 6);
-    Renderer::CmdEndRenderPass(it);
-    Renderer::CmdEnd(it);
-    ++i;
-  }
-
-  static constexpr size_t kMaxFramesInFlight = 2;
-  std::vector<Renderer::Semaphore> image_available_semaphores(
-      kMaxFramesInFlight);
-  for (auto& it : image_available_semaphores) {
-    it = Renderer::CreateSemaphore(device);
-  }
-  std::vector<Renderer::Semaphore> render_finished_semaphores(
-      kMaxFramesInFlight);
-  for (auto& it : render_finished_semaphores) {
-    it = Renderer::CreateSemaphore(device);
-  }
-  std::vector<Renderer::Fence> in_flight_fences(kMaxFramesInFlight);
-  for (auto& it : in_flight_fences) {
-    it = Renderer::CreateFence(device, true);
-  }
-
-  size_t current_frame = 0;
-  std::chrono::high_resolution_clock::time_point time =
-      std::chrono::high_resolution_clock::now();
-  while (!glfwWindowShouldClose(window)) {
-    glfwPollEvents();
-    std::chrono::high_resolution_clock::time_point current_time =
-        std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed_time = current_time - time;
-    time = current_time;
-    double delta_seconds = elapsed_time.count();
-
-    Renderer::WaitForFences(&in_flight_fences[current_frame], 1, true,
-                            std::numeric_limits<uint64_t>::max());
-    Renderer::ResetFences(&in_flight_fences[current_frame], 1);
-
-    uint32_t imageIndex;
-    Renderer::AcquireNextImage(swapchain, std::numeric_limits<uint64_t>::max(),
-                               image_available_semaphores[current_frame],
-                               &imageIndex);
-
-    Renderer::SubmitInfo submit_info;
-    submit_info.wait_semaphores = &image_available_semaphores[current_frame];
-    submit_info.wait_semaphores_count = 1;
-    submit_info.command_buffers = &cmd_buffers[imageIndex];
-    submit_info.command_buffers_count = 1;
-    submit_info.signal_semaphores = &render_finished_semaphores[current_frame];
-    submit_info.signal_semaphores_count = 1;
-    Renderer::QueueSubmit(device, submit_info, in_flight_fences[current_frame]);
-
-    Renderer::PresentInfo present_info;
-    present_info.wait_semaphores = &render_finished_semaphores[current_frame];
-    present_info.wait_semaphores_count = 1;
-    Renderer::QueuePresent(swapchain, imageIndex, present_info);
-    current_frame = (current_frame + 1) % kMaxFramesInFlight;
-  }
-
-  Renderer::DeviceWaitIdle(device);
-  Renderer::DestroyCommandPool(command_pool);
-  for (auto it : framebuffers) {
-    Renderer::DestroyFramebuffer(it);
-  }
-
-  for (auto& it : in_flight_fences) {
-    Renderer::DestroyFence(it);
-  }
-  for (auto it : image_available_semaphores) {
-    Renderer::DestroySemaphore(it);
-  }
-  for (auto it : render_finished_semaphores) {
-    Renderer::DestroySemaphore(it);
-  }
-  Renderer::DestroyBuffer(index_buffer);
-  Renderer::DestroyBuffer(vertex_buffer);
-  Renderer::DestroyGraphicsPipeline(pipeline);
-  Renderer::DestroyRenderPass(pass);
-  Renderer::DestroySwapChain(swapchain);
-  Renderer::DestroyDevice(device);
-  Renderer::Destroy(instance);
-  Shutdown(window);
-}
-
-int main() {
-  try {
-    Run();
-  } catch (const std::exception& e) {
-    std::cerr << e.what() << std::endl;
-    return EXIT_FAILURE;
-  }
-  return 0;
 }
