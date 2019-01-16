@@ -12,7 +12,7 @@ cc_library(
   deps = [
     "@vulkan//:vulkan",
     "@VulkanMemoryAllocator//:VulkanMemoryAllocator",
-    "//:renderer",
+    "//renderer:renderer",
     "//generational",
     "//generational:generational_vector",
   ],

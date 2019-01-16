@@ -5,7 +5,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include "renderer.h"
+#include <renderer/renderer.h>
 #include "samples/common/util.h"
 
 void CreateVkSurfance(Renderer::Instance instance, GLFWwindow* window);

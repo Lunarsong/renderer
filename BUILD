@@ -1,13 +1,8 @@
 cc_library(
   name = "renderer",
-  srcs = [
-  ],
-  hdrs = [
-    "renderer.h",
-    "renderer_texture.h"
-  ],
-  copts = [],
   deps = [
+    "//renderer:renderer",
+    "//renderer/backends/vulkan:vulkan",
   ],
   visibility = ["//visibility:public"],
 )

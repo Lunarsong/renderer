@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <vector>
 #include "vk_mem_alloc.h"
-#include "vulkan/renderer_vulkan.h"
+#include "../renderer_vulkan.h"
 
 namespace Renderer {
 extern bool enable_validation_layers;

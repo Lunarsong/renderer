@@ -5,7 +5,7 @@ cc_binary(
   deps = [
     "@glfw//:glfw",
     "@vulkan//:vulkan",
-    "//vulkan",
+    "//:renderer",
     "//samples/common",
   ],
   data = [
