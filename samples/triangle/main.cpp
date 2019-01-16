@@ -45,7 +45,9 @@ void Run() {
 
   Renderer::DescriptorSetLayoutCreateInfo descriptor_layout_info = {
       {{Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kVertexBit},
-       {Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kFragmentBit}}};
+       {Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kFragmentBit},
+       {Renderer::DescriptorType::kCombinedImageSampler, 1,
+        Renderer::kFragmentBit}}};
   Renderer::DescriptorSetLayout descriptor_layout =
       Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
 
@@ -57,7 +59,9 @@ void Run() {
 
   Renderer::CreateDescriptorSetPoolCreateInfo pool_info = {
       {{Renderer::DescriptorType::kUniformBuffer,
-        static_cast<uint32_t>(framebuffers.size()) * 2}},
+        static_cast<uint32_t>(framebuffers.size()) * 2},
+       {Renderer::DescriptorType::kCombinedImageSampler,
+        static_cast<uint32_t>(framebuffers.size())}},
       /*max_sets=*/static_cast<uint32_t>(framebuffers.size())};
   Renderer::DescriptorSetPool set_pool =
       Renderer::CreateDescriptorSetPool(device, pool_info);
@@ -73,15 +77,15 @@ void Run() {
 
   // Create the vertex and index buffers. Copy the data using a staging buffer.
 
-  std::vector<float> quad = {-0.5, -0.5, 1.0, 0.0, 0.0,  //
-                             0.5,  0.5,  0.0, 0.0, 1.0,  //
-                             -0.5, 0.5,  0.0, 1.0, 0.0,  //
-                             0.5,  -0.5, 1.0, 1.0, 1.0};
+  std::vector<float> quad = {-0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 0.0,  //
+                             0.5,  0.5,  1.0, 1.0, 0.0, 0.0, 1.0,  //
+                             -0.5, 0.5,  0.0, 1.0, 0.0, 1.0, 0.0,  //
+                             0.5,  -0.5, 1.0, 0.0, 1.0, 1.0, 1.0};
   Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
+      device, Renderer::BufferType::kVertex, sizeof(float) * 4 * 7,
       Renderer::MemoryUsage::kGpu);
   Renderer::StageCopyDataToBuffer(command_pool, vertex_buffer, quad.data(),
-                                  sizeof(float) * 6 * 5);
+                                  sizeof(float) * 4 * 7);
 
   // Create the index buffer in GPU memory and copy the data.
   const uint32_t indices[] = {0, 1, 2, 3, 1, 0};
@@ -113,9 +117,17 @@ void Run() {
   Renderer::BufferImageCopy image_copy(0, 0, 0, 2, 2, 1);
   Renderer::StageCopyDataToImage(command_pool, image, pixels, 2 * 2 * 4,
                                  image_copy);
+  Renderer::ImageViewCreateInfo image_view_info(
+      image, Renderer::ImageViewType::Texture2D,
+      Renderer::TextureFormat::kR8G8B8A8_UNORM,
+      Renderer::ImageSubresourceRange(
+          Renderer::ImageAspectFlagBits::kColorBit));
+  Renderer::ImageView image_view =
+      Renderer::CreateImageView(device, image_view_info);
+  Renderer::Sampler sampler = Renderer::CreateSampler(device);
 
   for (auto it : descriptor_sets) {
-    Renderer::WriteDescriptorSet write[2];
+    Renderer::WriteDescriptorSet write[3];
     Renderer::DescriptorBufferInfo offset_buffer;
     offset_buffer.buffer = uniform_buffer_offset;
     offset_buffer.range = sizeof(float) * 4;
@@ -134,7 +146,16 @@ void Run() {
     write[1].descriptor_count = 1;
     write[1].type = Renderer::DescriptorType::kUniformBuffer;
 
-    Renderer::UpdateDescriptorSets(device, 2, write);
+    Renderer::DescriptorImageInfo image_info;
+    image_info.image_view = image_view;
+    image_info.sampler = sampler;
+    write[2].set = it;
+    write[2].binding = 2;
+    write[2].descriptor_count = 1;
+    write[2].type = Renderer::DescriptorType::kCombinedImageSampler;
+    write[2].images = &image_info;
+
+    Renderer::UpdateDescriptorSets(device, 3, write);
   }
 
   // Command buffers for every image in the swapchain.
@@ -234,11 +255,13 @@ void Run() {
     Renderer::DestroySemaphore(it);
   }
   Renderer::DestroyDescriptorSetPool(set_pool);
+  Renderer::DestroyImageView(device, image_view);
   Renderer::DestroyImage(image);
   Renderer::DestroyBuffer(uniform_buffer_color);
   Renderer::DestroyBuffer(uniform_buffer_offset);
   Renderer::DestroyBuffer(index_buffer);
   Renderer::DestroyBuffer(vertex_buffer);
+  Renderer::DestroySampler(device, sampler);
   Renderer::DestroyGraphicsPipeline(pipeline);
   Renderer::DestroyPipelineLayout(device, pipeline_layout);
   Renderer::DestroyDescriptorSetLayout(descriptor_layout);
@@ -290,7 +313,9 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
   info.vertex_input[0].layout.push_back(
       {Renderer::VertexAttributeType::kVec2, 0});
   info.vertex_input[0].layout.push_back(
-      {Renderer::VertexAttributeType::kVec3, sizeof(float) * 2});
+      {Renderer::VertexAttributeType::kVec2, sizeof(float) * 2});
+  info.vertex_input[0].layout.push_back(
+      {Renderer::VertexAttributeType::kVec3, sizeof(float) * 4});
   info.layout = layout;
 
   pipeline = Renderer::CreateGraphicsPipeline(device, pass, info);

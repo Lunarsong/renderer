@@ -25,6 +25,15 @@ enum class TextureType {
   Texture3D = 2,
 };
 
+enum class ImageViewType {
+  Texture1D = 0,
+  Texture2D = 1,
+  Texture3D = 2,
+  Cube,
+  Array1D,
+  Array2D,
+};
+
 enum class TextureFormat {
   kUndefined = 0,
   kR4G4_UNORM_PACK8 = 1,
@@ -313,6 +322,13 @@ enum class ComponentSwizzle {
   kAlpha = 6
 };
 
+struct Swizzle {
+  ComponentSwizzle r = ComponentSwizzle::kIdentity;
+  ComponentSwizzle g = ComponentSwizzle::kIdentity;
+  ComponentSwizzle b = ComponentSwizzle::kIdentity;
+  ComponentSwizzle a = ComponentSwizzle::kIdentity;
+};
+
 enum class TextureWrapMode { kClampToEdge, kMirroredRepeat, kRepeat };
 
 enum class TextureFilter { kPoint, kLinear };
@@ -332,6 +348,45 @@ enum TextureCubeFaces {
   kTextureCubeBack,
   kTextureCubeFront,
   kTextureCubeSize
+};
+
+enum class ImageAspectFlagBits {
+  kColorBit = 0x00000001,
+  kDepthBit = 0x00000002,
+  kStencilBit = 0x00000004,
+  kAspectMetadataBit = 0x00000008,
+  kAspectPlane0Bit = 0x00000010,
+  kAspectPlane1Bit = 0x00000020,
+  kAspectPlane2Bit = 0x00000040,
+  kAspectMemoryPlane0Bit_EXT = 0x00000080,
+  kAspectMemoryPlane1Bit_EXT = 0x00000100,
+  kAspectMemoryPlane2Bit_EXT = 0x00000200,
+  kAspectMemoryPlane3Bit_EXT = 0x00000400,
+  kAspectPlane0Bit_KHR = kAspectPlane0Bit,
+  kAspectPlane1Bit_KHR = kAspectPlane1Bit,
+  kAspectPlane2Bit_KHR = kAspectPlane2Bit,
+};
+
+constexpr uint32_t kRemainingMipLevels = ~0U;
+constexpr uint32_t kRemainingArrayLayers = ~0U;
+
+struct ImageSubresourceRange {
+  ImageAspectFlagBits aspect_mask;
+  uint32_t base_mipmap_level = 0;
+  uint32_t level_count = kRemainingMipLevels;
+  uint32_t base_array_layer = 0;
+  uint32_t layer_count = kRemainingArrayLayers;
+
+  ImageSubresourceRange(ImageAspectFlagBits aspect_mask,
+                        uint32_t base_mipmap_level = 0,
+                        uint32_t level_count = kRemainingMipLevels,
+                        uint32_t base_array_layer = 0,
+                        uint32_t layer_count = kRemainingArrayLayers)
+      : aspect_mask(aspect_mask),
+        base_mipmap_level(base_mipmap_level),
+        level_count(level_count),
+        base_array_layer(base_array_layer),
+        layer_count(layer_count) {}
 };
 
 bool IsDepthFormat(TextureFormat format);

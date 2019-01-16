@@ -942,30 +942,17 @@ void AllocateDescriptorSets(DescriptorSetPool pool,
   }
 }
 
-/*
-struct DescriptorBufferInfo {
-  Buffer buffer;
-  uint64_t offset;
-  uint64_t range;
-};
-struct WriteDescriptorSet {
-  DescriptorSet set;
-  uint32_t binding;
-  uint32_t dst_array_element = 0;
-  uint32_t descriptor_count = 0;
-  DescriptorType type;
-  const DescriptorImageInfo* images = nullptr;
-  const DescriptorBufferInfo* buffers = nullptr;
-};
-*/
 void UpdateDescriptorSets(Device device, uint32_t descriptor_write_count,
                           WriteDescriptorSet* descriptor_writes,
                           uint32_t descriptor_copy_count,
                           void* descriptor_copies) {
   VkDescriptorBufferInfo buffers[20];
+  VkDescriptorImageInfo image_info[20];
+  uint32_t buffer_offset = 0;
+  uint32_t image_offset = 0;
+
   VkWriteDescriptorSet write_sets[10] = {};
   assert(descriptor_copy_count <= 10);
-  uint32_t buffer_offset = 0;
   for (uint32_t i = 0; i < descriptor_write_count; ++i) {
     write_sets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_sets[i].dstSet =
@@ -979,14 +966,29 @@ void UpdateDescriptorSets(Device device, uint32_t descriptor_write_count,
     write_sets[i].pTexelBufferView = nullptr;
     write_sets[i].pBufferInfo = nullptr;
     if (descriptor_writes[i].type == DescriptorType::kUniformBuffer) {
-      assert(buffer_offset <= 20);
       write_sets[i].pBufferInfo = &buffers[buffer_offset];
       for (uint32_t j = 0; j < descriptor_writes[i].descriptor_count; ++j) {
+        assert(buffer_offset < 20);
         const auto& buffer = descriptor_writes[i].buffers[j];
         buffers[buffer_offset].buffer = buffers_[buffer.buffer].buffer;
         buffers[buffer_offset].offset = buffer.offset;
         buffers[buffer_offset].range = buffer.range;
         ++buffer_offset;
+      }
+    } else if (descriptor_writes[i].type ==
+               DescriptorType::kCombinedImageSampler) {
+      write_sets[i].pImageInfo = &image_info[image_offset];
+      for (uint32_t j = 0; j < descriptor_writes[i].descriptor_count; ++j) {
+        assert(image_offset < 20);
+        const auto& image = descriptor_writes[i].images[j];
+        image_info[image_offset].imageView =
+            reinterpret_cast<VkImageView>(image.image_view);
+        image_info[image_offset].sampler =
+            reinterpret_cast<VkSampler>(image.sampler);
+        image_info[image_offset].imageLayout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        ++image_offset;
       }
     } else {
       assert(false);
@@ -1197,6 +1199,78 @@ void StageCopyDataToBuffer(CommandPool pool, Buffer buffer, const void* data,
   vkCmdCopyBuffer(cmd, staging_buffer, buffers_[buffer].buffer, 1, &copyRegion);
   EndSingleTimeCommands(device_ref, pool_ref.pool, cmd);
   vmaDestroyBuffer(device_ref.allocator, staging_buffer, allocation);
+}
+
+ImageView CreateImageView(Device device, const ImageViewCreateInfo& info) {
+  assert(sizeof(ImageView) == sizeof(VkImageView));
+  auto& device_ref = devices_[device];
+
+  VkImageViewCreateInfo viewInfo = {};
+  viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  viewInfo.image = images_[info.image].image;
+  viewInfo.viewType = static_cast<VkImageViewType>(info.type);
+  viewInfo.format = static_cast<VkFormat>(info.format);
+  viewInfo.components.r = static_cast<VkComponentSwizzle>(info.swizzle.r);
+  viewInfo.components.g = static_cast<VkComponentSwizzle>(info.swizzle.g);
+  viewInfo.components.b = static_cast<VkComponentSwizzle>(info.swizzle.b);
+  viewInfo.components.a = static_cast<VkComponentSwizzle>(info.swizzle.a);
+  viewInfo.subresourceRange.aspectMask =
+      static_cast<VkImageAspectFlags>(info.subresource_range.aspect_mask);
+  viewInfo.subresourceRange.baseMipLevel =
+      info.subresource_range.base_mipmap_level;
+  viewInfo.subresourceRange.levelCount = info.subresource_range.level_count;
+  viewInfo.subresourceRange.baseArrayLayer =
+      info.subresource_range.base_array_layer;
+  viewInfo.subresourceRange.layerCount = info.subresource_range.layer_count;
+
+  VkImageView imageView;
+  if (vkCreateImageView(device_ref.device, &viewInfo, nullptr, &imageView) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to create texture image view!");
+  }
+
+  return reinterpret_cast<ImageView>(imageView);
+}
+
+void DestroyImageView(Device device, ImageView view) {
+  vkDestroyImageView(devices_[device].device,
+                     reinterpret_cast<VkImageView>(view), nullptr);
+}
+
+Sampler CreateSampler(Device device) {
+  assert(sizeof(Sampler) == sizeof(VkSampler));
+
+  VkSamplerCreateInfo samplerInfo = {};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  // samplerInfo.magFilter = VK_FILTER_LINEAR;
+  // samplerInfo.minFilter = VK_FILTER_LINEAR;
+  samplerInfo.magFilter = VK_FILTER_NEAREST;
+  samplerInfo.minFilter = VK_FILTER_NEAREST;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  samplerInfo.mipLodBias = 0.0f;
+  samplerInfo.minLod = 0.0f;
+  samplerInfo.maxLod = 0.0f;
+  samplerInfo.anisotropyEnable = VK_FALSE;
+  samplerInfo.maxAnisotropy = 1;
+
+  VkSampler sampler;
+  if (vkCreateSampler(devices_[device].device, &samplerInfo, nullptr,
+                      &sampler) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create texture sampler!");
+  }
+  return reinterpret_cast<Sampler>(sampler);
+}
+
+void DestroySampler(Device device, Sampler sampler) {
+  vkDestroySampler(devices_[device].device,
+                   reinterpret_cast<VkSampler>(sampler), nullptr);
 }
 
 // TODO: Find a more elegant way to solve the surface problem?

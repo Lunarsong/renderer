@@ -25,6 +25,7 @@ using DescriptorSetPool = HandleType;
 using DescriptorSet = HandleType;
 using Image = HandleType;
 using ImageView = HandleType;
+using Sampler = HandleType;
 
 enum class VertexAttributeType { kFloat, kVec2, kVec3, kVec4 };
 
@@ -207,7 +208,10 @@ void DestroyDescriptorSetPool(DescriptorSetPool pool);
 void AllocateDescriptorSets(DescriptorSetPool pool,
                             const std::vector<DescriptorSetLayout>& layouts,
                             DescriptorSet* sets);
-struct DescriptorImageInfo {};
+struct DescriptorImageInfo {
+  ImageView image_view;
+  Sampler sampler;
+};
 struct DescriptorBufferInfo {
   Buffer buffer;
   uint64_t offset = 0;
@@ -263,5 +267,27 @@ struct BufferImageCopy {
 };
 void StageCopyDataToImage(CommandPool pool, Image image, const void* data,
                           uint64_t size, const BufferImageCopy& info);
+
+struct ImageViewCreateInfo {
+  Image image;
+  ImageViewType type;
+  TextureFormat format;
+  ImageSubresourceRange subresource_range;
+  Swizzle swizzle;
+
+  ImageViewCreateInfo() = default;
+  ImageViewCreateInfo(Image image, ImageViewType type, TextureFormat format,
+                      ImageSubresourceRange range, Swizzle swizzle = Swizzle())
+      : image(image),
+        type(type),
+        format(format),
+        subresource_range(std::move(range)),
+        swizzle(std::move(swizzle)) {}
+};
+ImageView CreateImageView(Device device, const ImageViewCreateInfo& info);
+void DestroyImageView(Device device, ImageView view);
+
+Sampler CreateSampler(Device device);
+void DestroySampler(Device device, Sampler sampler);
 
 }  // namespace Renderer
