@@ -27,6 +27,7 @@ GenerationalVector<SemaphoreVk> semaphores_;
 GenerationalVector<FenceVk> fences_;
 GenerationalVector<DescriptorSetLayoutVk> descriptor_set_layouts_;
 GenerationalVector<DescriptorSetPoolVk> descriptor_set_pools_;
+GenerationalVector<ImageVk> images_;
 }  // namespace
 
 Instance Create(const char* const* extensions, uint32_t extensions_count) {
@@ -993,6 +994,209 @@ void UpdateDescriptorSets(Device device, uint32_t descriptor_write_count,
   }
   vkUpdateDescriptorSets(devices_[device].device, descriptor_write_count,
                          write_sets, 0, nullptr);
+}
+
+Image CreateImage(Device device, const ImageCreateInfo& info) {
+  auto& device_ref = devices_[device];
+  ImageVk image;
+  image.device = device;
+
+  VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+  imageInfo.imageType = static_cast<VkImageType>(info.type);
+  imageInfo.extent.width = info.extent.width;
+  imageInfo.extent.height = info.extent.height;
+  imageInfo.extent.depth = info.extent.depth;
+  imageInfo.mipLevels = info.mips;
+  imageInfo.arrayLayers = 1;
+  imageInfo.format = static_cast<VkFormat>(info.format);
+  imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+  imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageInfo.usage =
+      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+  imageInfo.flags = 0;
+
+  VmaAllocationCreateInfo imageAllocCreateInfo = {};
+  imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+  if (vmaCreateImage(device_ref.allocator, &imageInfo, &imageAllocCreateInfo,
+                     &image.image, &image.allocation, nullptr) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create image!");
+  }
+  return images_.Create(std::move(image));
+}
+
+void DestroyImage(Image image) {
+  auto& ref = images_[image];
+  auto& device_ref = devices_[ref.device];
+  vmaDestroyImage(device_ref.allocator, ref.image, ref.allocation);
+  images_.Destroy(image);
+}
+
+VkCommandBuffer BeginSingleTimeCommands(DeviceVk& device, VkCommandPool pool) {
+  VkCommandBufferAllocateInfo allocInfo = {};
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandPool = pool;
+  allocInfo.commandBufferCount = 1;
+
+  VkCommandBuffer commandBuffer;
+  vkAllocateCommandBuffers(device.device, &allocInfo, &commandBuffer);
+
+  VkCommandBufferBeginInfo beginInfo = {};
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+  vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+  return commandBuffer;
+}
+
+void EndSingleTimeCommands(DeviceVk& device, VkCommandPool pool,
+                           VkCommandBuffer commandBuffer) {
+  vkEndCommandBuffer(commandBuffer);
+
+  VkSubmitInfo submitInfo = {};
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+
+  VkFenceCreateInfo fenceInfo = {};
+  fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  fenceInfo.flags = 0;
+
+  VkFence fence;
+  if (vkCreateFence(device.device, &fenceInfo, nullptr, &fence) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create fence!");
+  }
+
+  vkQueueSubmit(device.graphics_queue, 1, &submitInfo, fence);
+  vkWaitForFences(device.device, 1, &fence, true,
+                  std::numeric_limits<uint64_t>::max());
+
+  vkDestroyFence(device.device, fence, nullptr);
+  vkFreeCommandBuffers(device.device, pool, 1, &commandBuffer);
+}
+
+void RecordTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
+                                 VkImageLayout oldLayout,
+                                 VkImageLayout newLayout) {
+  VkImageMemoryBarrier barrier = {};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.oldLayout = oldLayout;
+  barrier.newLayout = newLayout;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = image;
+  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  barrier.subresourceRange.baseMipLevel = 0;
+  barrier.subresourceRange.levelCount = 1;
+  barrier.subresourceRange.baseArrayLayer = 0;
+  barrier.subresourceRange.layerCount = 1;
+
+  VkPipelineStageFlags sourceStage;
+  VkPipelineStageFlags destinationStage;
+
+  if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+      newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+  } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+  } else {
+    throw std::invalid_argument("unsupported layout transition!");
+  }
+
+  vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0,
+                       nullptr, 0, nullptr, 1, &barrier);
+}
+
+void StageCopyDataToImage(CommandPool pool, Image image, const void* data,
+                          uint64_t size, const BufferImageCopy& info) {
+  auto& pool_ref = command_pools_[pool];
+  auto& device_ref = devices_[pool_ref.device];
+  auto& image_ref = images_[image];
+
+  VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+  bufferInfo.size = size;
+  bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+  VmaAllocationCreateInfo allocInfo = {};
+  allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+  allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  VkBuffer buffer;
+  VmaAllocation allocation;
+  vmaCreateBuffer(device_ref.allocator, &bufferInfo, &allocInfo, &buffer,
+                  &allocation, nullptr);
+  void* mapped_data;
+  vmaMapMemory(device_ref.allocator, allocation, &mapped_data);
+  memcpy(mapped_data, data, static_cast<size_t>(size));
+  vmaUnmapMemory(device_ref.allocator, allocation);
+
+  VkCommandBuffer cmd = BeginSingleTimeCommands(device_ref, pool_ref.pool);
+  RecordTransitionImageLayout(cmd, image_ref.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+  VkBufferImageCopy region = {};
+  region.bufferOffset = 0;
+  region.bufferRowLength = 0;
+  region.bufferImageHeight = 0;
+  region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  region.imageSubresource.mipLevel = 0;
+  region.imageSubresource.baseArrayLayer = 0;
+  region.imageSubresource.layerCount = 1;
+  region.imageOffset.x = info.offset.x;
+  region.imageOffset.y = info.offset.y;
+  region.imageOffset.z = info.offset.z;
+  region.imageExtent.width = info.extent.width;
+  region.imageExtent.height = info.extent.height;
+  region.imageExtent.depth = info.extent.depth;
+  vkCmdCopyBufferToImage(cmd, buffer, image_ref.image,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+  RecordTransitionImageLayout(cmd, image_ref.image,
+                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  EndSingleTimeCommands(device_ref, pool_ref.pool, cmd);
+  vmaDestroyBuffer(device_ref.allocator, buffer, allocation);
+}
+
+void StageCopyDataToBuffer(CommandPool pool, Buffer buffer, const void* data,
+                           uint64_t size) {
+  auto& pool_ref = command_pools_[pool];
+  auto& device_ref = devices_[pool_ref.device];
+
+  VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+  bufferInfo.size = size;
+  bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+  VmaAllocationCreateInfo allocInfo = {};
+  allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+  allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  VkBuffer staging_buffer;
+  VmaAllocation allocation;
+  vmaCreateBuffer(device_ref.allocator, &bufferInfo, &allocInfo,
+                  &staging_buffer, &allocation, nullptr);
+  void* mapped_data;
+  vmaMapMemory(device_ref.allocator, allocation, &mapped_data);
+  memcpy(mapped_data, data, static_cast<size_t>(size));
+  vmaUnmapMemory(device_ref.allocator, allocation);
+
+  VkCommandBuffer cmd = BeginSingleTimeCommands(device_ref, pool_ref.pool);
+  VkBufferCopy copyRegion = {};
+  copyRegion.size = size;
+  vkCmdCopyBuffer(cmd, staging_buffer, buffers_[buffer].buffer, 1, &copyRegion);
+  EndSingleTimeCommands(device_ref, pool_ref.pool, cmd);
+  vmaDestroyBuffer(device_ref.allocator, staging_buffer, allocation);
 }
 
 // TODO: Find a more elegant way to solve the surface problem?

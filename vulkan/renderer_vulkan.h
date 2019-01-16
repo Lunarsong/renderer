@@ -92,4 +92,10 @@ struct DescriptorSetPoolVk {
   VkDescriptorPool pool;
 };
 
+struct ImageVk {
+  Device device;
+  VkImage image;
+  VmaAllocation allocation;
+};
+
 }  // namespace Renderer

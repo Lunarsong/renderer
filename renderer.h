@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <vector>
+#include "renderer_texture.h"
 
 namespace Renderer {
 using HandleType = uint64_t;
@@ -22,6 +23,8 @@ using Fence = HandleType;
 using DescriptorSetLayout = HandleType;
 using DescriptorSetPool = HandleType;
 using DescriptorSet = HandleType;
+using Image = HandleType;
+using ImageView = HandleType;
 
 enum class VertexAttributeType { kFloat, kVec2, kVec3, kVec4 };
 
@@ -242,5 +245,23 @@ struct PresentInfo {
   const Semaphore* wait_semaphores;
 };
 void QueuePresent(SwapChain swapchain, uint32_t image, const PresentInfo& info);
+
+// Images.
+Image CreateImage(Device device, const ImageCreateInfo& info);
+void DestroyImage(Image image);
+
+// Helpers.
+void StageCopyDataToBuffer(CommandPool pool, Buffer buffer, const void* data,
+                           uint64_t size);
+struct BufferImageCopy {
+  Offset3D offset = {0, 0, 0};
+  Extent3D extent;
+  BufferImageCopy() = default;
+  BufferImageCopy(uint32_t x, uint32_t y, uint32_t z, uint32_t width,
+                  uint32_t height, uint32_t depth)
+      : offset(x, y, z), extent(width, height, depth) {}
+};
+void StageCopyDataToImage(CommandPool pool, Image image, const void* data,
+                          uint64_t size, const BufferImageCopy& info);
 
 }  // namespace Renderer

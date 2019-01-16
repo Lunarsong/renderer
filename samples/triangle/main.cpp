@@ -71,8 +71,7 @@ void Run() {
   // Create a command pool.
   Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
 
-  // Create the vertex and index buffers. Use staging buffer for the vertex
-  // buffer, just for fun.
+  // Create the vertex and index buffers. Copy the data using a staging buffer.
 
   std::vector<float> quad = {-0.5, -0.5, 1.0, 0.0, 0.0,  //
                              0.5,  0.5,  0.0, 0.0, 1.0,  //
@@ -81,38 +80,16 @@ void Run() {
   Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
       device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
       Renderer::MemoryUsage::kGpu);
+  Renderer::StageCopyDataToBuffer(command_pool, vertex_buffer, quad.data(),
+                                  sizeof(float) * 6 * 5);
 
-  Renderer::Buffer staging_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kVertex, sizeof(float) * 6 * 5,
-      Renderer::MemoryUsage::kCpu);
-  memcpy(Renderer::MapBuffer(staging_buffer), quad.data(),
-         sizeof(float) * 6 * 5);
-  Renderer::UnmapBuffer(staging_buffer);
-  Renderer::Fence staging_fence = Renderer::CreateFence(device);
-  Renderer::CommandBuffer staging_cmd =
-      Renderer::CreateCommandBuffer(command_pool);
-  Renderer::CmdBegin(staging_cmd);
-  Renderer::BufferCopy copy_region;
-  copy_region.size = sizeof(float) * 6 * 5;
-  Renderer::CmdCopyBuffer(staging_cmd, staging_buffer, vertex_buffer, 1,
-                          &copy_region);
-  Renderer::CmdEnd(staging_cmd);
-  Renderer::SubmitInfo staging_info;
-
-  staging_info.command_buffers = &staging_cmd;
-  staging_info.command_buffers_count = 1;
-  Renderer::QueueSubmit(device, staging_info, staging_fence);
-  Renderer::WaitForFences(&staging_fence, 1, true,
-                          std::numeric_limits<uint64_t>::max());
-  Renderer::DestroyBuffer(staging_buffer);
-  Renderer::DestroyFence(staging_fence);
-
-  // Create the index buffer (no staging).
+  // Create the index buffer in GPU memory and copy the data.
   const uint32_t indices[] = {0, 1, 2, 3, 1, 0};
-  Renderer::Buffer index_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kIndex, sizeof(uint32_t) * 6);
-  memcpy(Renderer::MapBuffer(index_buffer), indices, sizeof(uint32_t) * 6);
-  Renderer::UnmapBuffer(index_buffer);
+  Renderer::Buffer index_buffer =
+      Renderer::CreateBuffer(device, Renderer::BufferType::kIndex,
+                             sizeof(uint32_t) * 6, Renderer::MemoryUsage::kGpu);
+  Renderer::StageCopyDataToBuffer(command_pool, index_buffer, indices,
+                                  sizeof(uint32_t) * 6);
 
   float offsets[] = {0.5f, 0.0f, 0.0f, 0.0f};
   Renderer::Buffer uniform_buffer_offset = Renderer::CreateBuffer(
@@ -126,6 +103,16 @@ void Run() {
       device, Renderer::BufferType::kUniform, sizeof(float) * 4);
   memcpy(Renderer::MapBuffer(uniform_buffer_color), color, sizeof(float) * 4);
   Renderer::UnmapBuffer(uniform_buffer_color);
+
+  Renderer::Image image =
+      Renderer::CreateImage(device, {Renderer::TextureType::Texture2D,
+                                     Renderer::TextureFormat::kR8G8B8A8_UNORM,
+                                     Renderer::Extent3D(2, 2, 1)});
+  unsigned char pixels[] = {255, 255, 255, 255, 0,   0,   0,   255,
+                            0,   0,   0,   255, 255, 255, 255, 255};
+  Renderer::BufferImageCopy image_copy(0, 0, 0, 2, 2, 1);
+  Renderer::StageCopyDataToImage(command_pool, image, pixels, 2 * 2 * 4,
+                                 image_copy);
 
   for (auto it : descriptor_sets) {
     Renderer::WriteDescriptorSet write[2];
@@ -247,6 +234,7 @@ void Run() {
     Renderer::DestroySemaphore(it);
   }
   Renderer::DestroyDescriptorSetPool(set_pool);
+  Renderer::DestroyImage(image);
   Renderer::DestroyBuffer(uniform_buffer_color);
   Renderer::DestroyBuffer(uniform_buffer_offset);
   Renderer::DestroyBuffer(index_buffer);

@@ -3,7 +3,8 @@ cc_library(
   srcs = [
   ],
   hdrs = [
-    "renderer.h"
+    "renderer.h",
+    "renderer_texture.h"
   ],
   copts = [],
   deps = [
