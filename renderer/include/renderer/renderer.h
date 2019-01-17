@@ -55,6 +55,8 @@ void DestroySwapChain(SwapChain swapchain);
 uint32_t GetSwapChainLength(SwapChain swapchain);
 void AcquireNextImage(SwapChain swapchain, uint64_t timeout_ns,
                       Semaphore semaphore, uint32_t* out_image_index);
+TextureFormat GetSwapChainImageFormat(SwapChain swapchain);
+ImageView GetSwapChainImageView(SwapChain swapchain, uint32_t index);
 
 // Graphics Pipeline.
 struct ShaderCreateInfo {
@@ -76,13 +78,78 @@ GraphicsPipeline CreateGraphicsPipeline(Device device, RenderPass pass,
                                         const GraphicsPipelineCreateInfo& info);
 void DestroyGraphicsPipeline(GraphicsPipeline pipeline);
 
+enum AttachmentDescriptionFlags {
+
+};
+
+enum SampleCountFlagBits {
+  SAMPLE_COUNT_1_BIT = 0x00000001,
+  SAMPLE_COUNT_2_BIT = 0x00000002,
+  SAMPLE_COUNT_4_BIT = 0x00000004,
+  SAMPLE_COUNT_8_BIT = 0x00000008,
+  SAMPLE_COUNT_16_BIT = 0x00000010,
+  SAMPLE_COUNT_32_BIT = 0x00000020,
+  SAMPLE_COUNT_64_BIT = 0x00000040,
+};
+
+enum class AttachmentLoadOp {
+  kLoad = 0,
+  kClear = 1,
+  kDontCare = 2,
+};
+
+enum class AttachmentStoreOp {
+  kStore = 0,
+  kDontCare = 1,
+};
+
+enum class ImageLayout {
+  kUndefined = 0,
+  kGeneral = 1,
+  kColorAttachmentOptimal = 2,
+  kDepthStencilAttachmentOptimal = 3,
+  kDepthStencilReadOnlyOptimal = 4,
+  kShaderReadOnlyOptimal = 5,
+  kTransferSrcOptimal = 6,
+  kTransferDrcOptimal = 7,
+  kPreinitialized = 8,
+  kDepthReadOnlyStencilAttachmentOptimal = 1000117000,
+  kDepthAttachmentStencilReadonlyOptimal = 1000117001,
+  kPresentSrcKHR = 1000001002,
+  kSharedPresentKHR = 1000111000,
+  kShadingRateOptimalNV = 1000164003,
+  kFragmentDensityMapOptimalEXT = 1000218000,
+};
+
+struct AttachmentDescription {
+  uint32_t flags = 0;
+  TextureFormat format = TextureFormat::kUndefined;
+  SampleCountFlagBits samples = SAMPLE_COUNT_1_BIT;
+  AttachmentLoadOp load_op = AttachmentLoadOp::kDontCare;
+  AttachmentStoreOp store_op = AttachmentStoreOp::kDontCare;
+  AttachmentLoadOp stencil_load_op = AttachmentLoadOp::kDontCare;
+  AttachmentStoreOp stencilStoreOp = AttachmentStoreOp::kDontCare;
+  ImageLayout initial_layout = ImageLayout::kUndefined;
+  ImageLayout final_layout;
+};
+
+struct RenderPassCreateInfo {
+  std::vector<AttachmentDescription> color_attachments;
+  std::vector<AttachmentDescription> depth_stencil_attachments;
+};
+
 // Render pass.
-RenderPass CreateRenderPass(Device device, SwapChain swapchain);
+RenderPass CreateRenderPass(Device device, const RenderPassCreateInfo& info);
 void DestroyRenderPass(RenderPass pass);
 
 // Framebuffers.
-Framebuffer CreateSwapChainFramebuffer(SwapChain swapchain, uint32_t index,
-                                       RenderPass pass);
+struct FramebufferCreateInfo {
+  RenderPass pass;
+  std::vector<ImageView> attachments;
+  uint32_t width;
+  uint32_t height;
+};
+Framebuffer CreateFramebuffer(Device device, const FramebufferCreateInfo& info);
 void DestroyFramebuffer(Framebuffer buffer);
 
 // Buffers.

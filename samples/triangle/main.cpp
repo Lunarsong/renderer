@@ -36,11 +36,24 @@ void Run() {
   Renderer::SwapChain swapchain = Renderer::CreateSwapChain(device, 1980, 1200);
 
   // Create the render pass and frame buffers.
-  Renderer::RenderPass pass = Renderer::CreateRenderPass(device, swapchain);
+  Renderer::RenderPassCreateInfo pass_info;
+  pass_info.color_attachments.resize(1);
+  pass_info.color_attachments[0].format =
+      Renderer::GetSwapChainImageFormat(swapchain);
+  pass_info.color_attachments[0].load_op = Renderer::AttachmentLoadOp::kClear;
+  pass_info.color_attachments[0].store_op = Renderer::AttachmentStoreOp::kStore;
+  pass_info.color_attachments[0].final_layout =
+      Renderer::ImageLayout::kPresentSrcKHR;
+  Renderer::RenderPass pass = Renderer::CreateRenderPass(device, pass_info);
   const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain);
   std::vector<Renderer::Framebuffer> framebuffers(swapchain_length);
   for (uint32_t i = 0; i < swapchain_length; ++i) {
-    framebuffers[i] = Renderer::CreateSwapChainFramebuffer(swapchain, i, pass);
+    Renderer::FramebufferCreateInfo info;
+    info.pass = pass;
+    info.width = 1980;
+    info.height = 1200;
+    info.attachments.push_back(Renderer::GetSwapChainImageView(swapchain, i));
+    framebuffers[i] = Renderer::CreateFramebuffer(device, info);
   }
 
   Renderer::DescriptorSetLayoutCreateInfo descriptor_layout_info = {

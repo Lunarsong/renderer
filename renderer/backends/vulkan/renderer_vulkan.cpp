@@ -192,29 +192,37 @@ uint32_t GetSwapChainLength(SwapChain swapchain_handle) {
   return static_cast<uint32_t>(swapchain.image_views.size());
 }
 
-Framebuffer CreateSwapChainFramebuffer(SwapChain swapchain_handle,
-                                       uint32_t index, RenderPass pass_handle) {
-  auto& swapchain = swapchains_[swapchain_handle];
-  assert(index < swapchain.image_views.size());
-  VkImageView attachments[] = {swapchain.image_views[index]};
+TextureFormat GetSwapChainImageFormat(SwapChain swapchain) {
+  return static_cast<TextureFormat>(swapchains_[swapchain].format);
+}
 
+Framebuffer CreateFramebuffer(Device device,
+                              const FramebufferCreateInfo& info) {
   VkFramebufferCreateInfo framebufferInfo = {};
   framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-  auto& pass = render_passes_[pass_handle];
+  auto& pass = render_passes_[info.pass];
   framebufferInfo.renderPass = pass.pass;
-  framebufferInfo.attachmentCount = 1;
-  framebufferInfo.pAttachments = attachments;
-  framebufferInfo.width = swapchain.extent.width;
-  framebufferInfo.height = swapchain.extent.height;
+  framebufferInfo.attachmentCount =
+      static_cast<uint32_t>(info.attachments.size());
+  framebufferInfo.pAttachments =
+      reinterpret_cast<const VkImageView*>(info.attachments.data());
+  framebufferInfo.width = info.width;
+  framebufferInfo.height = info.height;
   framebufferInfo.layers = 1;
 
   FramebufferVk buffer;
-  buffer.device = swapchain.device;
-  if (vkCreateFramebuffer(devices_[swapchain.device].device, &framebufferInfo,
-                          nullptr, &buffer.buffer) != VK_SUCCESS) {
+  buffer.device = device;
+  if (vkCreateFramebuffer(devices_[device].device, &framebufferInfo, nullptr,
+                          &buffer.buffer) != VK_SUCCESS) {
     throw std::runtime_error("failed to create framebuffer!");
   }
   return framebuffers_.Create(std::move(buffer));
+}
+
+ImageView GetSwapChainImageView(SwapChain swapchain, uint32_t index) {
+  auto& swapchain_ref = swapchains_[swapchain];
+  assert(index < swapchain_ref.image_views.size());
+  return reinterpret_cast<ImageView>(swapchain_ref.image_views[index]);
 }
 
 void AcquireNextImage(SwapChain swapchain_handle, uint64_t timeout_ns,
@@ -244,32 +252,27 @@ void Destroy(Instance instance_handle) {
   vkDestroyInstance(instance.instance, nullptr);
 }
 
-RenderPass CreateRenderPass(Device device_handle, SwapChain swapchain_handle) {
+RenderPass CreateRenderPass(Device device_handle,
+                            const RenderPassCreateInfo& info) {
   auto& device = devices_[device_handle];
-  auto& swapchain = swapchains_[swapchain_handle];
 
   RenderPassVk pass;
   pass.device = device_handle;
 
-  VkAttachmentDescription colorAttachment = {};
-  colorAttachment.format = swapchain.format;
-  colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-  colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-  colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-  colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-  colorAttachment.flags = 0;
-
-  VkAttachmentReference colorAttachmentRef = {};
-  colorAttachmentRef.attachment = 0;
-  colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  std::vector<VkAttachmentReference> color_attachment_refs(
+      info.color_attachments.size());
+  uint32_t idx = 0;
+  for (const auto& it : info.color_attachments) {
+    color_attachment_refs[idx].attachment = idx;
+    color_attachment_refs[idx].layout =
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    ++idx;
+  }
 
   VkSubpassDescription subpass = {};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-  subpass.colorAttachmentCount = 1;
-  subpass.pColorAttachments = &colorAttachmentRef;
+  subpass.colorAttachmentCount = idx;
+  subpass.pColorAttachments = color_attachment_refs.data();
 
   VkSubpassDependency dependency[2] = {};
   dependency[0].srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -292,8 +295,11 @@ RenderPass CreateRenderPass(Device device_handle, SwapChain swapchain_handle) {
 
   VkRenderPassCreateInfo renderPassInfo = {};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-  renderPassInfo.attachmentCount = 1;
-  renderPassInfo.pAttachments = &colorAttachment;
+  renderPassInfo.attachmentCount =
+      static_cast<uint32_t>(info.color_attachments.size());
+  renderPassInfo.pAttachments =
+      reinterpret_cast<const VkAttachmentDescription*>(
+          info.color_attachments.data());
   renderPassInfo.subpassCount = 1;
   renderPassInfo.pSubpasses = &subpass;
   renderPassInfo.dependencyCount = 2;
