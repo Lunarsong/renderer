@@ -162,7 +162,15 @@ void* MapBuffer(Buffer buffer);
 void UnmapBuffer(Buffer buffer);
 
 // Command pools.
-CommandPool CreateCommandPool(Device device);
+enum class CommandPoolCreateFlags {
+  kDefault = 0,
+  kTransient = 0x00000001,
+  kResetCommand = 0x00000002,
+  kProtected = 0x00000004
+};
+CommandPool CreateCommandPool(
+    Device device,
+    CommandPoolCreateFlags flags = CommandPoolCreateFlags::kDefault);
 void DestroyCommandPool(CommandPool pool);
 
 // Command Buffers.

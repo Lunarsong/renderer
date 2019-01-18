@@ -199,11 +199,24 @@ void Run() {
   render_graph_.BuildSwapChain(1980, 1200);
 
   QuadPass quad_pass;
+  QuadPass quad_pass2;
   render_graph_.CreateRenderPass(
       [&](Renderer::RenderPass render_pass) {
         CompileQuadPass(quad_pass, device, command_pool, render_pass);
       },
       [&](RenderContext* context) { RenderQuad(context, quad_pass); });
+
+  render_graph_.CreateRenderPass(
+      [&](Renderer::RenderPass render_pass) {
+        CompileQuadPass(quad_pass2, device, command_pool, render_pass);
+
+        float offsets[] = {-0.5f, 0.0f, 0.0f, 0.0f};
+
+        memcpy(Renderer::MapBuffer(quad_pass2.uniform_buffer_offset), offsets,
+               sizeof(float) * 4);
+        Renderer::UnmapBuffer(quad_pass2.uniform_buffer_offset);
+      },
+      [&](RenderContext* context) { RenderQuad(context, quad_pass2); });
 
   std::chrono::high_resolution_clock::time_point time =
       std::chrono::high_resolution_clock::now();
@@ -220,9 +233,9 @@ void Run() {
     render_graph_.Render();
   }
 
-  DestroyQuadPass(device, quad_pass);
-
   render_graph_.Destroy();
+  DestroyQuadPass(device, quad_pass);
+  DestroyQuadPass(device, quad_pass2);
 
   Renderer::DestroyCommandPool(command_pool);
   Renderer::DestroyDevice(device);

@@ -3,8 +3,8 @@
 #include <iostream>
 
 RenderGraph::RenderGraph(Renderer::Device device) : device_(device) {
-  command_pool_ = Renderer::CreateCommandPool(device_);
-  CreateSyncObjects();
+  command_pool_ = Renderer::CreateCommandPool(
+      device_, Renderer::CommandPoolCreateFlags::kResetCommand);
 }
 
 RenderGraph::~RenderGraph() { Destroy(); }
@@ -32,10 +32,20 @@ void RenderGraph::Destroy() {
 }
 
 void RenderGraph::BuildSwapChain(uint32_t width, uint32_t height) {
+  Renderer::DeviceWaitIdle(device_);
+  DestroySyncObjects();
+  if (swapchain_ != Renderer::kInvalidHandle) {
+    Renderer::DestroySwapChain(swapchain_);
+    swapchain_ = Renderer::kInvalidHandle;
+  }
+
   swapchain_ = Renderer::CreateSwapChain(device_, width, height);
+  max_frames_in_flight = Renderer::GetSwapChainLength(swapchain_);
 
   swapchain_width_ = width;
   swapchain_height_ = height;
+
+  CreateSyncObjects();
 }
 
 void RenderGraph::Render() {
@@ -61,7 +71,7 @@ void RenderGraph::Render() {
 
   // Present.
   Renderer::PresentInfo present_info;
-  if (last_semaphore_ != Renderer::kInvalidHandle) {
+  if (render_complete_semaphore != Renderer::kInvalidHandle) {
     present_info.wait_semaphores = &render_complete_semaphore;
     //&rendering_complete_semaphores_[current_frame_];
     present_info.wait_semaphores_count = 1;
@@ -78,15 +88,15 @@ void RenderGraph::Submit() {}
 
 void RenderGraph::CreateSyncObjects() {
   present_semaphores_.resize(max_frames_in_flight);
-  rendering_complete_semaphores_.resize(max_frames_in_flight);
+  // rendering_complete_semaphores_.resize(max_frames_in_flight);
   backbuffer_fences_.resize(max_frames_in_flight);
 
   for (auto& it : present_semaphores_) {
     it = Renderer::CreateSemaphore(device_);
   }
-  for (auto& it : rendering_complete_semaphores_) {
+  /*for (auto& it : rendering_complete_semaphores_) {
     it = Renderer::CreateSemaphore(device_);
-  }
+  }*/
   for (auto& it : backbuffer_fences_) {
     it = Renderer::CreateFence(device_, true);
   }
@@ -96,14 +106,14 @@ void RenderGraph::DestroySyncObjects() {
   for (auto it : present_semaphores_) {
     Renderer::DestroySemaphore(it);
   }
-  for (auto it : rendering_complete_semaphores_) {
+  /*for (auto it : rendering_complete_semaphores_) {
     Renderer::DestroySemaphore(it);
-  }
+  }*/
   for (auto it : backbuffer_fences_) {
     Renderer::DestroyFence(it);
   }
   present_semaphores_.clear();
-  rendering_complete_semaphores_.clear();
+  // rendering_complete_semaphores_.clear();
   backbuffer_fences_.clear();
 }
 
@@ -120,17 +130,25 @@ void RenderGraph::CreateRenderPass(RenderGraphCompileFn compile_fn,
 }
 
 void RenderGraph::CompileRenderPass(RenderGraphPass* pass) {
+  static bool first = true;
   Renderer::RenderPassCreateInfo render_pass_info;
   render_pass_info.color_attachments.resize(1);
   render_pass_info.color_attachments[0].format =
       Renderer::GetSwapChainImageFormat(swapchain_);
-  render_pass_info.color_attachments[0].load_op =
-      Renderer::AttachmentLoadOp::kClear;
+  if (first) {
+    render_pass_info.color_attachments[0].load_op =
+        Renderer::AttachmentLoadOp::kClear;
+  } else {
+    render_pass_info.color_attachments[0].load_op =
+        Renderer::AttachmentLoadOp::kLoad;
+  }
   render_pass_info.color_attachments[0].store_op =
       Renderer::AttachmentStoreOp::kStore;
   render_pass_info.color_attachments[0].final_layout =
       Renderer::ImageLayout::kPresentSrcKHR;
   pass->pass = Renderer::CreateRenderPass(device_, render_pass_info);
+
+  first = false;
 
   const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain_);
   pass->frame_buffers.resize(swapchain_length);
@@ -205,9 +223,9 @@ Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
 
 void RenderGraph::CreateRenderContextForPass(RenderContext* context,
                                              const RenderGraphPass* pass) {
-  context->cmd =
-      pass->command_buffers[current_frame_ % pass->command_buffers.size()];
-  context->framebuffer =
-      pass->frame_buffers[current_frame_ % pass->frame_buffers.size()];
+  context->cmd = pass->command_buffers[current_backbuffer_image_ %
+                                       pass->command_buffers.size()];
+  context->framebuffer = pass->frame_buffers[current_backbuffer_image_ %
+                                             pass->frame_buffers.size()];
   context->pass = pass->pass;
 }

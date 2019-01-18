@@ -547,7 +547,8 @@ void DestroyFramebuffer(Framebuffer buffer_handle) {
   framebuffers_.Destroy(buffer_handle);
 }
 
-CommandPool CreateCommandPool(Device device_handle) {
+CommandPool CreateCommandPool(Device device_handle,
+                              CommandPoolCreateFlags flags) {
   CommandPoolVk pool;
   pool.device = device_handle;
   auto& device = devices_[device_handle];
@@ -555,7 +556,7 @@ CommandPool CreateCommandPool(Device device_handle) {
   VkCommandPoolCreateInfo poolInfo = {};
   poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   poolInfo.queueFamilyIndex = device.indices.graphics;
-  poolInfo.flags = 0;  // Optional
+  poolInfo.flags = static_cast<VkCommandPoolCreateFlagBits>(flags);
   if (vkCreateCommandPool(device.device, &poolInfo, nullptr, &pool.pool) !=
       VK_SUCCESS) {
     throw std::runtime_error("failed to create command pool!");

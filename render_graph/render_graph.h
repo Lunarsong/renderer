@@ -30,7 +30,7 @@ class RenderGraph {
   uint32_t current_frame_ = 0;
   uint32_t current_backbuffer_image_;
   std::vector<Renderer::Semaphore> present_semaphores_;
-  std::vector<Renderer::Semaphore> rendering_complete_semaphores_;
+  // std::vector<Renderer::Semaphore> rendering_complete_semaphores_;
   std::vector<Renderer::Fence> backbuffer_fences_;
   Renderer::Semaphore last_semaphore_ = Renderer::kInvalidHandle;
 
