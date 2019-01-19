@@ -46,4 +46,11 @@ void Manager::Destroy(Handle handle) {
   free_indices_.push(idx);
 }
 
+void Manager::Reset() {
+  generations_.clear();
+  while (!free_indices_.empty()) {
+    free_indices_.pop();
+  }
+}
+
 }  // namespace Generational

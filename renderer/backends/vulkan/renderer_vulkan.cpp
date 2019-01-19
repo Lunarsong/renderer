@@ -762,14 +762,16 @@ void QueueSubmit(Device device, const SubmitInfo& info, Fence fence) {
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
   VkSemaphore waitSemaphores[256] = {};
-  assert(info.wait_semaphores_count <= 1);
+  std::vector<VkPipelineStageFlags> waitStages(
+      info.wait_semaphores_count,
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+  assert(info.wait_semaphores_count <= 256);
   for (uint32_t i = 0; i < info.wait_semaphores_count; ++i) {
     waitSemaphores[i] = semaphores_[info.wait_semaphores[i]].semaphore;
   }
-  VkPipelineStageFlags waitStages[] = {
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
   submitInfo.pWaitSemaphores = waitSemaphores;
-  submitInfo.pWaitDstStageMask = waitStages;
+  submitInfo.pWaitDstStageMask = waitStages.data();
   submitInfo.waitSemaphoreCount = info.wait_semaphores_count;
 
   VkCommandBuffer cmds[256] = {};
@@ -780,7 +782,7 @@ void QueueSubmit(Device device, const SubmitInfo& info, Fence fence) {
   submitInfo.pCommandBuffers = cmds;
 
   VkSemaphore signalSemaphores[256] = {};
-  assert(info.signal_semaphores_count <= 1);
+  assert(info.signal_semaphores_count <= 256);
   for (uint32_t i = 0; i < info.signal_semaphores_count; ++i) {
     signalSemaphores[i] = semaphores_[info.signal_semaphores[i]].semaphore;
   }

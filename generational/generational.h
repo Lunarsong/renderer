@@ -23,6 +23,8 @@ class Manager {
   bool IsAlive(Handle handle) const;
   void Destroy(Handle handle);
 
+  void Reset();
+
  private:
   std::queue<HandleType> free_indices_;
   std::vector<uint8_t> generations_;

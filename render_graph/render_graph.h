@@ -3,6 +3,9 @@
 #include <renderer/renderer.h>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include "render_graph_builder.h"
+#include "render_graph_cache.h"
 #include "render_graph_pass.h"
 
 struct RenderGraphPass;
@@ -14,43 +17,47 @@ class RenderGraph {
   void BuildSwapChain(uint32_t width, uint32_t height);
   void Destroy();
 
+  void BeginFrame();
+  void Compile();
   void Render();
 
-  void CreateRenderPass(RenderGraphCompileFn compile_fn,
-                        RenderGraphRenderFn render_fn);
+  void AddPass(const std::string& name, RenderGraphSetupFn setup_fn,
+               RenderGraphRenderFn render_fn);
+  Renderer::SwapChain GetSwapChain() const;
+
+  RenderGraphMutableResource GetBackbufferFramebuffer() const;
 
  private:
   Renderer::Device device_;
   Renderer::SwapChain swapchain_ = Renderer::kInvalidHandle;
   Renderer::CommandPool command_pool_ = Renderer::kInvalidHandle;
 
+  RenderGraphBuilder builder_;
+  RenderGraphCache cache_;
+
+  // Current frame and how many frames are allowed to be drawn at the same time.
+  uint32_t current_frame_ = 0;
+  uint32_t max_frames_in_flight = 1;
+
+  // Swapchain information (should probably be moved elsewhere).
   uint32_t swapchain_width_;
   uint32_t swapchain_height_;
-  uint32_t max_frames_in_flight = 1;
-  uint32_t current_frame_ = 0;
   uint32_t current_backbuffer_image_;
+  Renderer::RenderPass backbuffer_render_pass_ = Renderer::kInvalidHandle;
+  std::vector<Renderer::Framebuffer> backbuffer_framebuffers_;
   std::vector<Renderer::Semaphore> present_semaphores_;
-  // std::vector<Renderer::Semaphore> rendering_complete_semaphores_;
+  std::vector<Renderer::Semaphore> backbuffer_complete_semaphores_;
   std::vector<Renderer::Fence> backbuffer_fences_;
-  Renderer::Semaphore last_semaphore_ = Renderer::kInvalidHandle;
+  RenderGraphMutableResource mutable_backbuffer_;
 
-  void Submit();
   void CreateSyncObjects();
   void DestroySyncObjects();
+  void AquireBackbuffer();
+  void DestroySwapChain();
 
-  // Render passes.
-  std::vector<std::unique_ptr<RenderGraphPass>> render_passes_;
-  void CompileRenderPass(RenderGraphPass* pass);
-  void DestroyRenderPass(RenderGraphPass* pass);
+  // Passes.
+  std::vector<RenderGraphPass> passes_;
   Renderer::Semaphore ExecuteRenderPasses(Renderer::Semaphore semaphore);
   void CreateRenderContextForPass(RenderContext* context,
                                   const RenderGraphPass* pass);
-};
-
-struct RenderGraphPass {
-  Renderer::RenderPass pass;
-  std::vector<Renderer::Framebuffer> frame_buffers;
-  std::vector<Renderer::CommandBuffer> command_buffers;
-  std::vector<Renderer::Semaphore> semaphores;
-  RenderGraphRenderFn fn;
 };

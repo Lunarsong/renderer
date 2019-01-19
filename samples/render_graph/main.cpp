@@ -26,6 +26,8 @@ struct QuadPass {
   Renderer::ImageView image_view;
   Renderer::Sampler sampler;
 
+  Renderer::RenderPass render_pass;
+
   Renderer::DescriptorSetLayout descriptor_layout;
   Renderer::DescriptorSetPool descriptor_set_pool;
   Renderer::DescriptorSet descriptor_set;
@@ -36,7 +38,7 @@ struct QuadPass {
 
 void CompileQuadPass(QuadPass& pass, Renderer::Device device,
                      Renderer::CommandPool command_pool,
-                     Renderer::RenderPass render_pass) {
+                     const RenderGraph& graph) {
   // Create the quad.
   std::vector<float> quad = {-0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 0.0,  //
                              0.5,  0.5,  1.0, 1.0, 0.0, 0.0, 1.0,  //
@@ -97,10 +99,19 @@ void CompileQuadPass(QuadPass& pass, Renderer::Device device,
   pass.descriptor_layout =
       Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
 
+  Renderer::RenderPassCreateInfo pass_info;
+  pass_info.color_attachments.resize(1);
+  pass_info.color_attachments[0].final_layout =
+      Renderer::ImageLayout::kPresentSrcKHR;
+  pass_info.color_attachments[0].format =
+      Renderer::GetSwapChainImageFormat(graph.GetSwapChain());
+  pass.render_pass = Renderer::CreateRenderPass(device, pass_info);
+
   // Create a pipeline.
   pass.pipeline_layout =
       Renderer::CreatePipelineLayout(device, {{pass.descriptor_layout}});
-  pass.pipeline = CreatePipeline(device, render_pass, pass.pipeline_layout);
+  pass.pipeline =
+      CreatePipeline(device, pass.render_pass, pass.pipeline_layout);
 
   // Create the descriptor sets.
   Renderer::CreateDescriptorSetPoolCreateInfo pool_info = {
@@ -173,6 +184,8 @@ void DestroyQuadPass(Renderer::Device device, QuadPass& pass) {
 
   Renderer::DestroyPipelineLayout(device, pass.pipeline_layout);
   Renderer::DestroyGraphicsPipeline(pass.pipeline);
+
+  Renderer::DestroyRenderPass(pass.render_pass);
 }
 
 void Run() {
@@ -200,23 +213,13 @@ void Run() {
 
   QuadPass quad_pass;
   QuadPass quad_pass2;
-  render_graph_.CreateRenderPass(
-      [&](Renderer::RenderPass render_pass) {
-        CompileQuadPass(quad_pass, device, command_pool, render_pass);
-      },
-      [&](RenderContext* context) { RenderQuad(context, quad_pass); });
 
-  render_graph_.CreateRenderPass(
-      [&](Renderer::RenderPass render_pass) {
-        CompileQuadPass(quad_pass2, device, command_pool, render_pass);
-
-        float offsets[] = {-0.5f, 0.0f, 0.0f, 0.0f};
-
-        memcpy(Renderer::MapBuffer(quad_pass2.uniform_buffer_offset), offsets,
-               sizeof(float) * 4);
-        Renderer::UnmapBuffer(quad_pass2.uniform_buffer_offset);
-      },
-      [&](RenderContext* context) { RenderQuad(context, quad_pass2); });
+  CompileQuadPass(quad_pass, device, command_pool, render_graph_);
+  CompileQuadPass(quad_pass2, device, command_pool, render_graph_);
+  float offsets[] = {-0.5f, 0.0f, 0.0f, 0.0f};
+  memcpy(Renderer::MapBuffer(quad_pass2.uniform_buffer_offset), offsets,
+         sizeof(float) * 4);
+  Renderer::UnmapBuffer(quad_pass2.uniform_buffer_offset);
 
   std::chrono::high_resolution_clock::time_point time =
       std::chrono::high_resolution_clock::now();
@@ -230,6 +233,23 @@ void Run() {
     time = current_time;
     double delta_seconds = elapsed_time.count();
 
+    render_graph_.BeginFrame();
+
+    render_graph_.AddPass(
+        "right quad",
+        [&](RenderGraphBuilder& builder) {
+          builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
+        },
+        [&](RenderContext* context) { RenderQuad(context, quad_pass); });
+
+    render_graph_.AddPass(
+        "left quad",
+        [&](RenderGraphBuilder& builder) {
+          builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
+        },
+        [&](RenderContext* context) { RenderQuad(context, quad_pass2); });
+
+    render_graph_.Compile();
     render_graph_.Render();
   }
 
