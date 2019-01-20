@@ -17,7 +17,7 @@ class RenderGraphBuilder {
   void Read(RenderGraphResource resource);
 
   // For use only by the render graph.
-  void Build(std::vector<RenderGraphPass>& passes);
+  std::vector<RenderGraphNode> Build(std::vector<RenderGraphPass>& passes);
   void SetCurrentPass(RenderGraphPassHandle pass);
   void Reset();
 
@@ -34,4 +34,7 @@ class RenderGraphBuilder {
   std::unordered_map<RenderGraphMutableResource,
                      std::vector<RenderGraphPassHandle>>
       render_targets_;
+
+  // Debug info.
+  uint8_t debug_current_pass_render_targets_ = 0;
 };

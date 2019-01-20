@@ -249,7 +249,6 @@ void Run() {
         },
         [&](RenderContext* context) { RenderQuad(context, quad_pass2); });
 
-    render_graph_.Compile();
     render_graph_.Render();
   }
 

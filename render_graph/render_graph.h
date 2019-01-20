@@ -18,7 +18,6 @@ class RenderGraph {
   void Destroy();
 
   void BeginFrame();
-  void Compile();
   void Render();
 
   void AddPass(const std::string& name, RenderGraphSetupFn setup_fn,
@@ -57,7 +56,7 @@ class RenderGraph {
 
   // Passes.
   std::vector<RenderGraphPass> passes_;
-  Renderer::Semaphore ExecuteRenderPasses(Renderer::Semaphore semaphore);
-  void CreateRenderContextForPass(RenderContext* context,
-                                  const RenderGraphPass* pass);
+  std::vector<RenderGraphNode> Compile();
+  Renderer::Semaphore ExecuteRenderPasses(std::vector<RenderGraphNode>& nodes,
+                                          Renderer::Semaphore semaphore);
 };

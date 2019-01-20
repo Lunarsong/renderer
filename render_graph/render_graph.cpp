@@ -65,7 +65,7 @@ void RenderGraph::BuildSwapChain(uint32_t width, uint32_t height) {
   render_pass_info.color_attachments[0].format =
       Renderer::GetSwapChainImageFormat(swapchain_);
   render_pass_info.color_attachments[0].load_op =
-      Renderer::AttachmentLoadOp::kDontCare;
+      Renderer::AttachmentLoadOp::kClear;
   render_pass_info.color_attachments[0].store_op =
       Renderer::AttachmentStoreOp::kStore;
   render_pass_info.color_attachments[0].final_layout =
@@ -89,7 +89,7 @@ void RenderGraph::BuildSwapChain(uint32_t width, uint32_t height) {
   CreateSyncObjects();
 }
 
-void RenderGraph::Compile() {
+std::vector<RenderGraphNode> RenderGraph::Compile() {
   AddPass("Present",
           [this](RenderGraphBuilder& builder) {
             builder.Read(mutable_backbuffer_);
@@ -97,7 +97,7 @@ void RenderGraph::Compile() {
           },
           [this](RenderContext* context) {});
 
-  builder_.Build(passes_);
+  return builder_.Build(passes_);
 }
 
 void RenderGraph::BeginFrame() {
@@ -108,6 +108,9 @@ void RenderGraph::BeginFrame() {
 }
 
 void RenderGraph::Render() {
+  // Compile the pass (should this be exposed?)
+  std::vector<RenderGraphNode> nodes = Compile();
+
   // (This should be removed) If the CPU is ahead, wait on fences.
   Renderer::WaitForFences(&backbuffer_fences_[current_frame_], 1, true,
                           std::numeric_limits<uint64_t>::max());
@@ -115,7 +118,7 @@ void RenderGraph::Render() {
 
   // Submit work from the renderer passes.
   Renderer::Semaphore render_complete_semaphore =
-      ExecuteRenderPasses(present_semaphores_[current_frame_]);
+      ExecuteRenderPasses(nodes, present_semaphores_[current_frame_]);
 
   // Present.
   Renderer::PresentInfo present_info;
@@ -146,62 +149,60 @@ void RenderGraph::AddPass(const std::string& name, RenderGraphSetupFn setup_fn,
 }
 
 Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
-    Renderer::Semaphore semaphore) {
+    std::vector<RenderGraphNode>& nodes, Renderer::Semaphore semaphore) {
   Renderer::Semaphore signal_semaphore = Renderer::kInvalidHandle;
 
   Renderer::SubmitInfo submit_info;
   RenderContext context;
   size_t count = 0;
-  for (auto& pass : passes_) {
-    if (pass.cmd == Renderer::kInvalidHandle) {
+  for (auto& node : nodes) {
+    if (node.render_cmd == Renderer::kInvalidHandle) {
       continue;
     }
 
-    CreateRenderContextForPass(&context, &pass);
+    context.cmd = node.render_cmd;
     Renderer::CmdBegin(context.cmd);
-    if (pass.render_pass != Renderer::kInvalidHandle &&
-        pass.framebuffer != Renderer::kInvalidHandle) {
-      Renderer::CmdBeginRenderPass(context.cmd, context.pass,
-                                   context.framebuffer);
-      pass.fn(&context);
-      Renderer::CmdEndRenderPass(context.cmd);
-    } else {
-      pass.fn(&context);
+
+    for (auto& render_pass : node.render_passes) {
+      if (render_pass.framebuffer.pass != Renderer::kInvalidHandle &&
+          render_pass.framebuffer.framebuffer != Renderer::kInvalidHandle) {
+        context.framebuffer = render_pass.framebuffer.framebuffer;
+        context.pass = render_pass.framebuffer.pass;
+        Renderer::CmdBeginRenderPass(context.cmd, context.pass,
+                                     context.framebuffer);
+        for (auto& pass : render_pass.passes) {
+          pass->fn(&context);
+        }
+        Renderer::CmdEndRenderPass(context.cmd);
+      }
     }
     Renderer::CmdEnd(context.cmd);
 
-    // If this is the first pass, add the wait semaphore.
+    // If this is the first node, add the wait semaphore.
     if (semaphore != Renderer::kInvalidHandle) {
-      pass.wait_semaphores.emplace_back(semaphore);
+      node.wait_semaphores.emplace_back(semaphore);
       semaphore = Renderer::kInvalidHandle;
     }
 
     // If this is the last pass, add a fence and semaphore.
     ++count;
     Renderer::Fence fence = Renderer::kInvalidHandle;
-    if (count == passes_.size()) {
+    if (count == nodes.size()) {
       fence = backbuffer_fences_[current_frame_];
       signal_semaphore = cache_.AllocateSemaphore();
-      pass.signal_semaphores.emplace_back(signal_semaphore);
+      node.signal_semaphores.emplace_back(signal_semaphore);
     }
 
     // Submit the pass.
-    submit_info.signal_semaphores = pass.signal_semaphores.data();
-    submit_info.signal_semaphores_count = pass.signal_semaphores.size();
-    submit_info.wait_semaphores = pass.wait_semaphores.data();
-    submit_info.wait_semaphores_count = pass.wait_semaphores.size();
+    submit_info.signal_semaphores = node.signal_semaphores.data();
+    submit_info.signal_semaphores_count = node.signal_semaphores.size();
+    submit_info.wait_semaphores = node.wait_semaphores.data();
+    submit_info.wait_semaphores_count = node.wait_semaphores.size();
     submit_info.command_buffers = &context.cmd;
     submit_info.command_buffers_count = 1;
     Renderer::QueueSubmit(device_, submit_info, fence);
   }
   return signal_semaphore;
-}
-
-void RenderGraph::CreateRenderContextForPass(RenderContext* context,
-                                             const RenderGraphPass* pass) {
-  context->cmd = pass->cmd;
-  context->framebuffer = pass->framebuffer;
-  context->pass = pass->render_pass;
 }
 
 Renderer::SwapChain RenderGraph::GetSwapChain() const { return swapchain_; }
@@ -274,8 +275,8 @@ void RenderGraph::DestroySyncObjects() {
     info.pass = pass->pass;
     info.width = swapchain_width_;
     info.height = swapchain_height_;
-    info.attachments.push_back(Renderer::GetSwapChainImageView(swapchain_, i));
-    pass->frame_buffers[i] = Renderer::CreateFramebuffer(device_, info);
+    info.attachments.push_back(Renderer::GetSwapChainImageView(swapchain_,
+i)); pass->frame_buffers[i] = Renderer::CreateFramebuffer(device_, info);
   }
 
   pass->command_buffers.resize(swapchain_length);

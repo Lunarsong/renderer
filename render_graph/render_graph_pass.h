@@ -23,10 +23,19 @@ struct RenderGraphPass {
   RenderGraphRenderFn fn;
   RenderGraphSetupFn setup;
 
-  Renderer::CommandBuffer cmd = Renderer::kInvalidHandle;
+  uint8_t count_ref = 0;
+};
 
-  Renderer::RenderPass render_pass = Renderer::kInvalidHandle;
-  Renderer::Framebuffer framebuffer = Renderer::kInvalidHandle;
+struct RenderGraphCombinedRenderPasses {
+  std::vector<RenderGraphPass*> passes;
+
+  RenderGraphFramebuffer framebuffer;
+};
+
+struct RenderGraphNode {
+  std::vector<RenderGraphCombinedRenderPasses> render_passes;
+
+  Renderer::CommandBuffer render_cmd = Renderer::kInvalidHandle;
   std::vector<Renderer::Semaphore> wait_semaphores;
   std::vector<Renderer::Semaphore> signal_semaphores;
 };
