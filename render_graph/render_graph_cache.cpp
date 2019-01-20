@@ -1,5 +1,11 @@
 #include "render_graph_cache.h"
 
+bool operator==(const RenderGraphTextureCreateInfo& a,
+                const RenderGraphTextureCreateInfo& b) {
+  return (a.format == b.format && a.width == b.width && a.height == b.height &&
+          a.load_op == b.load_op);
+}
+
 void RenderGraphCache::SetRenderObjects(Renderer::Device device,
                                         Renderer::CommandPool pool) {
   device_ = device;
@@ -15,8 +21,13 @@ RenderGraphMutableResource RenderGraphCache::AddFramebuffer(
 
 void RenderGraphCache::Reset() {
   framebuffers_.clear();
+  textures_.clear();
   cmd_index_ = 0;
   semaphore_index_ = 0;
+
+  for (auto& it : transient_buffers_) {
+    ++it.frames_since_use;
+  }
 }
 
 Renderer::CommandBuffer RenderGraphCache::AllocateCommand() {
@@ -47,4 +58,24 @@ RenderGraphFramebuffer* RenderGraphCache::GetFrameBuffer(
     return nullptr;
   }
   return &it->second;
+}
+
+RenderGraphMutableResource RenderGraphCache::CreateTransientFramebuffer(
+    const RenderGraphTextureCreateInfo& info) {
+  for (TransientFramebuffer& it : transient_buffers_) {
+    if (it.frames_since_use > 0 && it.info == info) {
+      ++it.frames_since_use;
+      return AddFramebuffer(it.resources);
+    }
+  }
+
+  TransientFramebuffer buffer;
+  transient_buffers_.emplace_back(std::move(buffer));
+  return AddFramebuffer(transient_buffers_.back().resources);
+}
+
+RenderGraphResource RenderGraphCache::AddTexture(RenderGraphTexture texture) {
+  RenderGraphMutableResource handle = read_handles_.Create();
+  textures_[handle] = std::move(texture);
+  return handle;
 }
