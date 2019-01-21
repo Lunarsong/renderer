@@ -281,8 +281,9 @@ void Run() {
           RenderGraphTextureCreateInfo info;
           info.width = 1980;
           info.height = 1200;
-          info.clear_values.rgba[2] = 1.0f;
+          info.clear_values.color.b = 1.0f;
           info.format = Renderer::TextureFormat::kR8G8B8A8_UNORM;
+          info.load_op = Renderer::AttachmentLoadOp::kClear;
           texture = builder.CreateRenderTarget(info).textures[0];
         },
         [&](RenderContext* context, const RenderGraphCache* cache) {

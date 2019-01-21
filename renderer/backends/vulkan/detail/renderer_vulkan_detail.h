@@ -60,4 +60,6 @@ VkBufferUsageFlagBits BufferUsageToVulkan(BufferType usage);
 VkBufferUsageFlagBits MemoryUsageToVulkan(MemoryUsage usage);
 VmaMemoryUsage MemoryUsageToVulkanMemoryAllocator(MemoryUsage usage);
 
+void DebugAsserts();
+
 }  // namespace Renderer

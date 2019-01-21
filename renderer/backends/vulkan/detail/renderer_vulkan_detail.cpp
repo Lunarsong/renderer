@@ -1,6 +1,7 @@
 #include "renderer_vulkan_detail.h"
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -417,21 +418,15 @@ VmaMemoryUsage MemoryUsageToVulkanMemoryAllocator(MemoryUsage usage) {
       throw std::runtime_error("Invalid memory usage!");
   }
 }
-/*typedef enum VkBufferUsageFlagBits {
-  VK_BUFFER_USAGE_TRANSFER_SRC_BIT = 0x00000001,
-  VK_BUFFER_USAGE_TRANSFER_DST_BIT = 0x00000002,
-  VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT = 0x00000004,
-  VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT = 0x00000008,
-  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT = 0x00000010,
-  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT = 0x00000020,
-  VK_BUFFER_USAGE_INDEX_BUFFER_BIT = 0x00000040,
-  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT = 0x00000080,
-  VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT = 0x00000100,
-  VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT = 0x00000800,
-  VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT = 0x00001000,
-  VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
-  VK_BUFFER_USAGE_RAY_TRACING_BIT_NV = 0x00000400,
-  VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT = 0x00020000,
-} VkBufferUsageFlagBits;*/
+
+void DebugAsserts() {
+  std::cout << sizeof(VkClearValue) << ", " << sizeof(Renderer::ClearValue)
+            << std::endl;
+  assert(sizeof(VkClearValue) == sizeof(Renderer::ClearValue));
+  assert(sizeof(VkDescriptorSet) == sizeof(DescriptorSet));
+  assert(sizeof(ImageView) == sizeof(VkImageView));
+  assert(sizeof(Sampler) == sizeof(VkSampler));
+  assert(sizeof(VkPipelineLayout) == sizeof(PipelineLayout));
+}
 
 }  // namespace Renderer

@@ -146,6 +146,7 @@ RenderGraphMutableResource RenderGraphCache::CreateTransientFramebuffer(
   for (const auto& texture : buffer.textures) {
     buffer.resources.textures.emplace_back(AddTexture(texture));
   }
+  buffer.resources.clear_values.emplace_back(info.clear_values);
 
   buffer.info = std::move(info);
   transient_buffers_.emplace_back(std::move(buffer));

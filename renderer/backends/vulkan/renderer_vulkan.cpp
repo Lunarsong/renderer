@@ -31,6 +31,7 @@ GenerationalVector<ImageVk> images_;
 }  // namespace
 
 Instance Create(const char* const* extensions, uint32_t extensions_count) {
+  DebugAsserts();
   const std::vector<const char*> validation_layers = {
       "VK_LAYER_LUNARG_standard_validation"};
   std::vector<const char*> extensions_vector(extensions,
@@ -322,7 +323,6 @@ void DestroyRenderPass(RenderPass pass_handle) {
 
 PipelineLayout CreatePipelineLayout(
     Device device, const std::vector<DescriptorSetLayout>& info) {
-  assert(sizeof(VkPipelineLayout) == sizeof(PipelineLayout));
   VkPipelineLayout layout;
 
   VkDescriptorSetLayout vk_layouts[256];
@@ -617,17 +617,17 @@ void CmdEnd(CommandBuffer buffer_handle) {
   }
 }
 
-void CmdBeginRenderPass(CommandBuffer buffer_handle, RenderPass pass_handle,
-                        Framebuffer framebuffer_handle) {
+void CmdBeginRenderPass(CommandBuffer buffer_handle,
+                        const BeginRenderPassInfo& info) {
   VkRenderPassBeginInfo renderPassInfo = {};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  renderPassInfo.renderPass = render_passes_[pass_handle].pass;
-  renderPassInfo.framebuffer = framebuffers_[framebuffer_handle].buffer;
+  renderPassInfo.renderPass = render_passes_[info.pass].pass;
+  renderPassInfo.framebuffer = framebuffers_[info.framebuffer].buffer;
   renderPassInfo.renderArea.offset = {0, 0};
   renderPassInfo.renderArea.extent = {1920, 1200};
-  VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-  renderPassInfo.clearValueCount = 1;
-  renderPassInfo.pClearValues = &clearColor;
+  renderPassInfo.clearValueCount = info.clear_values_count;
+  renderPassInfo.pClearValues =
+      reinterpret_cast<const VkClearValue*>(info.clear_values);
   vkCmdBeginRenderPass(command_buffers_[buffer_handle].buffer, &renderPassInfo,
                        VK_SUBPASS_CONTENTS_INLINE);
 }
@@ -942,8 +942,6 @@ void AllocateDescriptorSets(DescriptorSetPool pool,
   allocInfo.descriptorSetCount = static_cast<uint32_t>(vk_layouts.size());
   allocInfo.pSetLayouts = vk_layouts.data();
 
-  assert(sizeof(VkDescriptorSet) == sizeof(DescriptorSet));
-
   if (vkAllocateDescriptorSets(pool_ref.device, &allocInfo,
                                reinterpret_cast<VkDescriptorSet*>(sets)) !=
       VK_SUCCESS) {
@@ -1210,7 +1208,6 @@ void StageCopyDataToBuffer(CommandPool pool, Buffer buffer, const void* data,
 }
 
 ImageView CreateImageView(Device device, const ImageViewCreateInfo& info) {
-  assert(sizeof(ImageView) == sizeof(VkImageView));
   auto& device_ref = devices_[device];
 
   VkImageViewCreateInfo viewInfo = {};
@@ -1246,8 +1243,6 @@ void DestroyImageView(Device device, ImageView view) {
 }
 
 Sampler CreateSampler(Device device) {
-  assert(sizeof(Sampler) == sizeof(VkSampler));
-
   VkSamplerCreateInfo samplerInfo = {};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   // samplerInfo.magFilter = VK_FILTER_LINEAR;

@@ -173,13 +173,54 @@ CommandPool CreateCommandPool(
     CommandPoolCreateFlags flags = CommandPoolCreateFlags::kDefault);
 void DestroyCommandPool(CommandPool pool);
 
+struct ColorClearValue {
+  union {
+    struct {
+      float r;
+      float g;
+      float b;
+      float a;
+    };
+    float rgba[4];
+  };
+  ColorClearValue(float r = 0.0f, float g = 0.0f, float b = 0.0f,
+                  float a = 1.0f)
+      : r(r), g(g), b(b), a(a) {}
+};
+struct DepthStencilClearValue {
+  float depth = 1.0f;
+  uint32_t stencil = 0;
+};
+struct ClearValue {
+  union {
+    ColorClearValue color;
+    DepthStencilClearValue depth_stencil;
+  };
+  ClearValue(ColorClearValue color = ColorClearValue())
+      : color(std::move(color)) {}
+  ClearValue(DepthStencilClearValue depth_stencil)
+      : depth_stencil(std::move(depth_stencil)) {}
+};
 // Command Buffers.
+struct BeginRenderPassInfo {
+  RenderPass pass;
+  Framebuffer framebuffer;
+  uint32_t clear_values_count = 0;
+  const ClearValue* clear_values = nullptr;
+
+  BeginRenderPassInfo(RenderPass pass, Framebuffer framebuffer,
+                      uint32_t clear_values_count = 0,
+                      const ClearValue* clear_values = nullptr)
+      : pass(pass),
+        framebuffer(framebuffer),
+        clear_values_count(clear_values_count),
+        clear_values(clear_values) {}
+};
 CommandBuffer CreateCommandBuffer(CommandPool pool);
 void DestroyCommandBuffer(CommandBuffer buffer);
 void CmdBegin(CommandBuffer buffer);
 void CmdEnd(CommandBuffer buffer);
-void CmdBeginRenderPass(CommandBuffer buffer, RenderPass pass,
-                        Framebuffer framebuffer);
+void CmdBeginRenderPass(CommandBuffer buffer, const BeginRenderPassInfo& info);
 void CmdEndRenderPass(CommandBuffer buffer);
 void CmdBindPipeline(CommandBuffer buffer, GraphicsPipeline pipeline);
 void CmdBindVertexBuffers(CommandBuffer buffer, uint32_t first_binding,

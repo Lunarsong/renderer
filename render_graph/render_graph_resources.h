@@ -12,17 +12,12 @@ struct RenderGraphFramebuffer {
   Renderer::Framebuffer framebuffer;
 
   std::vector<RenderGraphResource> textures;
+  std::vector<Renderer::ClearValue> clear_values;
 };
 
 struct RenderGraphTexture {
   Renderer::Image image;
   Renderer::ImageView image_view;
-};
-
-struct RenderGraphClearValues {
-  float rgba[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-  float depth = 1.0f;
-  uint32_t stencil = 0;
 };
 
 struct RenderGraphTextureCreateInfo {
@@ -32,5 +27,5 @@ struct RenderGraphTextureCreateInfo {
   Renderer::TextureFormat format;
   Renderer::AttachmentLoadOp load_op = Renderer::AttachmentLoadOp::kDontCare;
 
-  RenderGraphClearValues clear_values;
+  Renderer::ClearValue clear_values;
 };

@@ -168,8 +168,12 @@ Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
           render_pass.framebuffer.framebuffer != Renderer::kInvalidHandle) {
         context.framebuffer = render_pass.framebuffer.framebuffer;
         context.pass = render_pass.framebuffer.pass;
-        Renderer::CmdBeginRenderPass(context.cmd, context.pass,
-                                     context.framebuffer);
+        Renderer::CmdBeginRenderPass(
+            context.cmd, Renderer::BeginRenderPassInfo(
+                             context.pass, context.framebuffer,
+                             static_cast<uint32_t>(
+                                 render_pass.framebuffer.clear_values.size()),
+                             render_pass.framebuffer.clear_values.data()));
         for (auto& pass : render_pass.passes) {
           pass->fn(&context, &cache_);
         }
@@ -217,6 +221,7 @@ void RenderGraph::AquireBackbuffer() {
   RenderGraphFramebuffer buffer;
   buffer.pass = backbuffer_render_pass_;
   buffer.framebuffer = backbuffer_framebuffers_[image_index];
+  buffer.clear_values.emplace_back();
   mutable_backbuffer_ = cache_.AddFramebuffer(buffer);
 }
 
