@@ -1,6 +1,8 @@
 # Description
 Shanee is messing around with Vulkan and Render Graphs. Go away ヽ(ಠ_ಠ)ノ
 
+The code is a very basic proof of concept, not yet optimized and not yet clean. Avert your nose from the smell.
+
 # Notes
 I currently have a minimal abstraction for Vulkan. The idea was to create something that looks like Vulkan and then implement GL and other things to fit into that. This may have been a terrible idea.
 
