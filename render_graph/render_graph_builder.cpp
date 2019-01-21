@@ -5,12 +5,23 @@
 RenderGraphBuilder::RenderGraphBuilder(RenderGraphCache* cache)
     : cache_(cache) {}
 
-void RenderGraphBuilder::UseRenderTarget(RenderGraphResource resource) {
+const RenderGraphFramebuffer& RenderGraphBuilder::UseRenderTarget(
+    RenderGraphResource resource) {
   render_targets_[resource].emplace_back(current_pass_);
   Write(resource);
   if (debug_current_pass_render_targets_++ > 0) {
     assert(false && "Must only have one render target per pass!");
   }
+  auto& fb = *cache_->GetFrameBuffer(resource);
+  for (auto it : fb.textures) {
+    Write(it);
+  }
+  return fb;
+}
+
+const RenderGraphFramebuffer& RenderGraphBuilder::CreateRenderTarget(
+    const RenderGraphTextureCreateInfo& info) {
+  return UseRenderTarget(cache_->CreateTransientFramebuffer(info));
 }
 
 void RenderGraphBuilder::Write(RenderGraphResource resource) {
@@ -110,7 +121,7 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
   // semaphores to be created for dependencies).
   for (size_t i = 1; i < nodes.size(); ++i) {
     Renderer::Semaphore semaphore = cache_->AllocateSemaphore();
-    nodes[i - 1].wait_semaphores.emplace_back(semaphore);
+    nodes[i - 1].signal_semaphores.emplace_back(semaphore);
     nodes[i].wait_semaphores.emplace_back(semaphore);
   }
 

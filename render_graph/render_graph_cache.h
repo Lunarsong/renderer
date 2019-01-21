@@ -14,6 +14,7 @@ class RenderGraphCache {
       const RenderGraphTextureCreateInfo& info);
 
   RenderGraphFramebuffer* GetFrameBuffer(RenderGraphMutableResource);
+  RenderGraphTexture GetTexture(RenderGraphResource texture) const;
 
   Renderer::CommandBuffer AllocateCommand();
   Renderer::Semaphore AllocateSemaphore();

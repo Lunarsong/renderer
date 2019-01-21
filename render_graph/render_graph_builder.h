@@ -12,7 +12,10 @@ class RenderGraphBuilder {
  public:
   RenderGraphBuilder(RenderGraphCache* cache);
 
-  void UseRenderTarget(RenderGraphResource resource);
+  const RenderGraphFramebuffer& UseRenderTarget(RenderGraphResource resource);
+  const RenderGraphFramebuffer& CreateRenderTarget(
+      const RenderGraphTextureCreateInfo& info);
+
   void Write(RenderGraphResource resource);
   void Read(RenderGraphResource resource);
 

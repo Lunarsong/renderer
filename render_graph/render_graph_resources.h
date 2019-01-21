@@ -30,7 +30,7 @@ struct RenderGraphTextureCreateInfo {
   uint32_t height;
 
   Renderer::TextureFormat format;
-  Renderer::AttachmentLoadOp load_op;
+  Renderer::AttachmentLoadOp load_op = Renderer::AttachmentLoadOp::kDontCare;
 
   RenderGraphClearValues clear_values;
 };

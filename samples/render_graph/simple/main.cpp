@@ -105,6 +105,12 @@ void CompileQuadPass(QuadPass& pass, Renderer::Device device,
       Renderer::ImageLayout::kPresentSrcKHR;
   pass_info.color_attachments[0].format =
       Renderer::GetSwapChainImageFormat(graph.GetSwapChain());
+  static bool first = true;
+  if (first) {
+    first = false;
+    pass_info.color_attachments[0].format =
+        Renderer::TextureFormat::kR8G8B8A8_UNORM;
+  }
   pass.render_pass = Renderer::CreateRenderPass(device, pass_info);
 
   // Create a pipeline.
@@ -188,6 +194,39 @@ void DestroyQuadPass(Renderer::Device device, QuadPass& pass) {
   Renderer::DestroyRenderPass(pass.render_pass);
 }
 
+void UpdateDescriptorSetTexture(Renderer::Device device, QuadPass& pass,
+                                Renderer::ImageView image_view) {
+  Renderer::WriteDescriptorSet write[3];
+  Renderer::DescriptorBufferInfo offset_buffer;
+  offset_buffer.buffer = pass.uniform_buffer_offset;
+  offset_buffer.range = sizeof(float) * 4;
+  write[0].set = pass.descriptor_set;
+  write[0].binding = 0;
+  write[0].buffers = &offset_buffer;
+  write[0].descriptor_count = 1;
+  write[0].type = Renderer::DescriptorType::kUniformBuffer;
+
+  Renderer::DescriptorBufferInfo color_buffer;
+  color_buffer.buffer = pass.uniform_buffer_color;
+  color_buffer.range = sizeof(float) * 4;
+  write[1].set = pass.descriptor_set;
+  write[1].binding = 1;
+  write[1].buffers = &color_buffer;
+  write[1].descriptor_count = 1;
+  write[1].type = Renderer::DescriptorType::kUniformBuffer;
+
+  Renderer::DescriptorImageInfo image_info;
+  image_info.image_view = image_view;
+  image_info.sampler = pass.sampler;
+  write[2].set = pass.descriptor_set;
+  write[2].binding = 2;
+  write[2].descriptor_count = 1;
+  write[2].type = Renderer::DescriptorType::kCombinedImageSampler;
+  write[2].images = &image_info;
+
+  Renderer::UpdateDescriptorSets(device, 3, write);
+}
+
 void Run() {
   std::cout << "Hello Vulkan" << std::endl;
 
@@ -211,15 +250,15 @@ void Run() {
   RenderGraph render_graph_(device);
   render_graph_.BuildSwapChain(1980, 1200);
 
-  QuadPass quad_pass;
-  QuadPass quad_pass2;
+  QuadPass example_pass_1;
+  QuadPass example_pass_2;
 
-  CompileQuadPass(quad_pass, device, command_pool, render_graph_);
-  CompileQuadPass(quad_pass2, device, command_pool, render_graph_);
+  CompileQuadPass(example_pass_1, device, command_pool, render_graph_);
+  CompileQuadPass(example_pass_2, device, command_pool, render_graph_);
   float offsets[] = {-0.5f, 0.0f, 0.0f, 0.0f};
-  memcpy(Renderer::MapBuffer(quad_pass2.uniform_buffer_offset), offsets,
+  memcpy(Renderer::MapBuffer(example_pass_2.uniform_buffer_offset), offsets,
          sizeof(float) * 4);
-  Renderer::UnmapBuffer(quad_pass2.uniform_buffer_offset);
+  Renderer::UnmapBuffer(example_pass_2.uniform_buffer_offset);
 
   std::chrono::high_resolution_clock::time_point time =
       std::chrono::high_resolution_clock::now();
@@ -235,26 +274,39 @@ void Run() {
 
     render_graph_.BeginFrame();
 
+    RenderGraphResource texture;
     render_graph_.AddPass(
         "right quad",
         [&](RenderGraphBuilder& builder) {
-          builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
+          RenderGraphTextureCreateInfo info;
+          info.width = 1980;
+          info.height = 1200;
+          info.clear_values.rgba[2] = 1.0f;
+          info.format = Renderer::TextureFormat::kR8G8B8A8_UNORM;
+          texture = builder.CreateRenderTarget(info).textures[0];
         },
-        [&](RenderContext* context) { RenderQuad(context, quad_pass); });
+        [&](RenderContext* context, const RenderGraphCache* cache) {
+          RenderQuad(context, example_pass_1);
+        });
 
     render_graph_.AddPass(
         "left quad",
         [&](RenderGraphBuilder& builder) {
+          builder.Read(texture);
           builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
         },
-        [&](RenderContext* context) { RenderQuad(context, quad_pass2); });
+        [&](RenderContext* context, const RenderGraphCache* cache) {
+          UpdateDescriptorSetTexture(device, example_pass_2,
+                                     cache->GetTexture(texture).image_view);
+          RenderQuad(context, example_pass_2);
+        });
 
     render_graph_.Render();
   }
 
   render_graph_.Destroy();
-  DestroyQuadPass(device, quad_pass);
-  DestroyQuadPass(device, quad_pass2);
+  DestroyQuadPass(device, example_pass_1);
+  DestroyQuadPass(device, example_pass_2);
 
   Renderer::DestroyCommandPool(command_pool);
   Renderer::DestroyDevice(device);

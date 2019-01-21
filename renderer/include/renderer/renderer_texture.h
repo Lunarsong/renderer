@@ -333,10 +333,25 @@ enum class TextureWrapMode { kClampToEdge, kMirroredRepeat, kRepeat };
 
 enum class TextureFilter { kPoint, kLinear };
 
+enum ImageUsageFlagBits {
+  kTransferSrcBit = 0x00000001,
+  kTransferDstBit = 0x00000002,
+  kSampledBit = 0x00000004,
+  kStorageBit = 0x00000008,
+  kColorAttachmentBit = 0x00000010,
+  kDepthStencilAttachmentBit = 0x00000020,
+  kTransientAttachmentBit = 0x00000040,
+  kinputAttachmentBit = 0x00000080,
+  kMax = 0x7FFFFFFF
+};
+using ImageUsageFlags = uint32_t;
+
 struct ImageCreateInfo {
   TextureType type;
   TextureFormat format;
   Extent3D extent;
+  ImageUsageFlags usage =
+      ImageUsageFlagBits::kTransferDstBit | ImageUsageFlagBits::kSampledBit;
   uint32_t mips = 1;
 };
 
@@ -350,7 +365,7 @@ enum TextureCubeFaces {
   kTextureCubeSize
 };
 
-enum class ImageAspectFlagBits {
+enum ImageAspectFlagBits {
   kColorBit = 0x00000001,
   kDepthBit = 0x00000002,
   kStencilBit = 0x00000004,
@@ -366,18 +381,19 @@ enum class ImageAspectFlagBits {
   kAspectPlane1Bit_KHR = kAspectPlane1Bit,
   kAspectPlane2Bit_KHR = kAspectPlane2Bit,
 };
+using ImageAspectFlags = uint32_t;
 
 constexpr uint32_t kRemainingMipLevels = ~0U;
 constexpr uint32_t kRemainingArrayLayers = ~0U;
 
 struct ImageSubresourceRange {
-  ImageAspectFlagBits aspect_mask;
+  ImageAspectFlags aspect_mask;
   uint32_t base_mipmap_level = 0;
   uint32_t level_count = kRemainingMipLevels;
   uint32_t base_array_layer = 0;
   uint32_t layer_count = kRemainingArrayLayers;
 
-  ImageSubresourceRange(ImageAspectFlagBits aspect_mask,
+  ImageSubresourceRange(ImageAspectFlags aspect_mask,
                         uint32_t base_mipmap_level = 0,
                         uint32_t level_count = kRemainingMipLevels,
                         uint32_t base_array_layer = 0,

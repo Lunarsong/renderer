@@ -128,7 +128,7 @@ struct AttachmentDescription {
   AttachmentLoadOp load_op = AttachmentLoadOp::kDontCare;
   AttachmentStoreOp store_op = AttachmentStoreOp::kDontCare;
   AttachmentLoadOp stencil_load_op = AttachmentLoadOp::kDontCare;
-  AttachmentStoreOp stencilStoreOp = AttachmentStoreOp::kDontCare;
+  AttachmentStoreOp stencil_store_op = AttachmentStoreOp::kDontCare;
   ImageLayout initial_layout = ImageLayout::kUndefined;
   ImageLayout final_layout;
 };

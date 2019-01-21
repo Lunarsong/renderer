@@ -95,7 +95,7 @@ std::vector<RenderGraphNode> RenderGraph::Compile() {
             builder.Read(mutable_backbuffer_);
             builder.UseRenderTarget(mutable_backbuffer_);
           },
-          [this](RenderContext* context) {});
+          [this](RenderContext* context, const RenderGraphCache* cache) {});
 
   return builder_.Build(passes_);
 }
@@ -171,7 +171,7 @@ Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
         Renderer::CmdBeginRenderPass(context.cmd, context.pass,
                                      context.framebuffer);
         for (auto& pass : render_pass.passes) {
-          pass->fn(&context);
+          pass->fn(&context, &cache_);
         }
         Renderer::CmdEndRenderPass(context.cmd);
       }

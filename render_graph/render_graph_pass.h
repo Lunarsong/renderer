@@ -11,7 +11,8 @@ struct RenderContext {
   Renderer::Framebuffer framebuffer;
 };
 
-using RenderGraphRenderFn = std::function<void(RenderContext* context)>;
+using RenderGraphRenderFn =
+    std::function<void(RenderContext* context, const RenderGraphCache* cache)>;
 using RenderGraphSetupFn = std::function<void(RenderGraphBuilder&)>;
 
 struct RenderGraphPassInfo {
