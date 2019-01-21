@@ -177,7 +177,10 @@ void Run() {
   for (auto& it : cmd_buffers) {
     it = Renderer::CreateCommandBuffer(command_pool);
     Renderer::CmdBegin(it);
-    Renderer::CmdBeginRenderPass(it, pass, framebuffers[i]);
+    Renderer::ClearValue clear_value;
+    Renderer::CmdBeginRenderPass(
+        it,
+        Renderer::BeginRenderPassInfo(pass, framebuffers[i], 1, &clear_value));
     Renderer::CmdBindPipeline(it, pipeline);
     Renderer::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
     Renderer::CmdBindIndexBuffer(it, index_buffer,
