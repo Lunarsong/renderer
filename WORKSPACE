@@ -35,3 +35,18 @@ new_git_repository(
     commit = "ae5c4661ecdff608b6d09704092a1cebbc5bc2ef",
     build_file = "third_party/VulkanMemoryAllocator.BUILD",
 )
+
+new_git_repository(
+    name = "glm",
+    remote = "https://github.com/g-truc/glm.git",
+    commit = "8cd6db11cd8d2bf68aaad86097f15a9f94604dc4",
+    init_submodules = 1,
+    build_file = "third_party/glm.BUILD",
+)
+
+new_git_repository(
+    name = "TinyGLTF",
+    remote = "https://github.com/syoyo/tinygltf.git",
+    commit = "d6b0b0b990b342cf9eab9878b09de5bb7b031ebf",
+    build_file = "third_party/TinyGLTF.BUILD",
+)

@@ -1,3 +1,13 @@
+load("//:glslang.bzl", "glslang")
+
+glslang(
+  name = "shaders",
+  srcs = [
+    "data/triangle.vert",
+    "data/triangle.frag",
+  ],
+)
+
 cc_binary(
   name = "triangle",
   srcs = ["main.cpp"],
@@ -9,7 +19,6 @@ cc_binary(
     "//samples/common",
   ],
   data = [
-    "data/frag.spv",
-    "data/vert.spv",
+    ":shaders",
   ],
 )

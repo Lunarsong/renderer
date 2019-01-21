@@ -346,8 +346,10 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
   Renderer::GraphicsPipeline pipeline = Renderer::kInvalidHandle;
 
   Renderer::GraphicsPipelineCreateInfo info;
-  auto vert = util::ReadFile("samples/render_graph/simple/data/vert.spv");
-  auto frag = util::ReadFile("samples/render_graph/simple/data/frag.spv");
+  auto vert =
+      util::ReadFile("samples/render_graph/simple/data/triangle.vert.spv");
+  auto frag =
+      util::ReadFile("samples/render_graph/simple/data/triangle.frag.spv");
   info.vertex.code = reinterpret_cast<const uint32_t*>(vert.data());
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
