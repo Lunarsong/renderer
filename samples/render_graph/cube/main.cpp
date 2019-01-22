@@ -256,11 +256,12 @@ void CreateCubePass(CubePass& pass, Renderer::Device device,
   pass.sampler = Renderer::CreateSampler(device);
 
   // Create the pipeline.
-  Renderer::DescriptorSetLayoutCreateInfo descriptor_layout_info(
-      {{Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kVertexBit},
+  Renderer::DescriptorSetLayoutCreateInfo descriptor_layout_info;
+  descriptor_layout_info.bindings =
+      {{{Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kVertexBit},
        {Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kFragmentBit},
        {Renderer::DescriptorType::kCombinedImageSampler, 1,
-        Renderer::kFragmentBit}});
+        Renderer::kFragmentBit}}};
   pass.descriptor_layout =
       Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
 
