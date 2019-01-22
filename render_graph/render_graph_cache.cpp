@@ -109,10 +109,11 @@ RenderGraphMutableResource RenderGraphCache::CreateTransientFramebuffer(
 
   TransientFramebuffer buffer;
   buffer.textures.resize(1);
-  buffer.textures[0].image = Renderer::CreateImage(
-      device_, {Renderer::TextureType::Texture2D, info.format,
-                Renderer::Extent3D(info.width, info.height, 1),
-                GetImageUsageFlagsForFormat(info.format)});
+  Renderer::ImageCreateInfo image_create_info(
+      Renderer::TextureType::Texture2D, info.format,
+      Renderer::Extent3D(info.width, info.height, 1),
+      GetImageUsageFlagsForFormat(info.format));
+  buffer.textures[0].image = Renderer::CreateImage(device_, image_create_info);
   const Renderer::ImageAspectFlags aspect_bits = GetAspectFlagBits(info.format);
   Renderer::ImageViewCreateInfo image_view_info(
       buffer.textures[0].image, Renderer::ImageViewType::Texture2D, info.format,
