@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <initializer_list>
 #include <vector>
 #include "renderer_texture.h"
 
@@ -301,6 +302,11 @@ struct DescriptorSetLayoutBinding {
 };
 struct DescriptorSetLayoutCreateInfo {
   std::vector<DescriptorSetLayoutBinding> bindings;
+
+  DescriptorSetLayoutCreateInfo() = default;
+  DescriptorSetLayoutCreateInfo(
+      std::initializer_list<DescriptorSetLayoutBinding>&& init_list)
+      : bindings(init_list) {}
 };
 
 DescriptorSetLayout CreateDescriptorSetLayout(
