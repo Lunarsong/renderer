@@ -305,8 +305,8 @@ struct DescriptorSetLayoutCreateInfo {
 
   DescriptorSetLayoutCreateInfo() = default;
   DescriptorSetLayoutCreateInfo(
-      std::initializer_list<DescriptorSetLayoutBinding>&& init_list)
-      : bindings(init_list) {}
+      std::initializer_list<DescriptorSetLayoutBinding> init_list)
+      : bindings(std::move(init_list)) {}
 };
 
 DescriptorSetLayout CreateDescriptorSetLayout(
