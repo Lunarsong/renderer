@@ -279,9 +279,10 @@ void Run() {
           builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
         },
         [&](RenderContext* context, const RenderGraphCache* cache) {
-          glm::mat4 perspective =
-              glm::perspectiveFov(45.0f, 1980.0f, 1200.0f, 0.1f, 100.0f);
-          glm::mat4 view = glm::lookAt(glm::vec3(0.0f, -2.5f, -5.0f),
+          glm::mat4 perspective = glm::perspectiveFov(
+              glm::radians(45.0f), 1980.0f, 1200.0f, 0.1f, 100.0f);
+          perspective[1][1] *= -1.0f;
+          glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 2.5f, -5.0f),
                                        glm::vec3(0.0f, 0.0f, 0.0f),
                                        glm::vec3(0.0f, 1.0f, 0.0f));
           glm::mat4 mvp = perspective * view *
