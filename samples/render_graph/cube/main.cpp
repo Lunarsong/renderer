@@ -359,6 +359,9 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
       {Renderer::VertexAttributeType::kVec3, sizeof(float) * 5});
   info.layout = layout;
 
+  info.states.viewport.viewports.emplace_back(
+      Renderer::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
+  info.states.blend.attachments.resize(1);
   pipeline = Renderer::CreateGraphicsPipeline(device, pass, info);
 
   return pipeline;

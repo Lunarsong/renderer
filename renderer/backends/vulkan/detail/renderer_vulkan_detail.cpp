@@ -425,6 +425,7 @@ void DebugAsserts() {
   assert(sizeof(ImageView) == sizeof(VkImageView));
   assert(sizeof(Sampler) == sizeof(VkSampler));
   assert(sizeof(VkPipelineLayout) == sizeof(PipelineLayout));
+  assert(sizeof(VkStencilOpState) == sizeof(StencilOpState));
 }
 
 }  // namespace Renderer

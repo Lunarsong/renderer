@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include <vector>
 #include "renderer_texture.h"
+#include "renderer_pipelines.h"
 
 namespace Renderer {
 using HandleType = uint64_t;
@@ -74,6 +75,7 @@ struct GraphicsPipelineCreateInfo {
   ShaderCreateInfo fragment;
   VertexInputBindings vertex_input;
   PipelineLayout layout;
+  GraphicsPipelineStateInfo states;
 };
 GraphicsPipeline CreateGraphicsPipeline(Device device, RenderPass pass,
                                         const GraphicsPipelineCreateInfo& info);
