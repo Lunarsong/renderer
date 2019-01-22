@@ -42,6 +42,127 @@ struct CubePass {
   Renderer::GraphicsPipeline pipeline;
 };
 
+void RenderCube(RenderContext* context, CubePass& pass);
+void DestroyCubePass(Renderer::Device device, CubePass& pass);
+void CreateCubePass(CubePass& pass, Renderer::Device device,
+                    Renderer::CommandPool command_pool,
+                    const RenderGraph& graph);
+
+void Run() {
+  std::cout << "Hello Vulkan" << std::endl;
+
+  // Create a window.
+  GLFWwindow* window = InitWindow();
+
+  // Create the renderer instance (in this case Vulkan).
+  uint32_t glfwExtensionCount = 0;
+  const char** glfwExtensions;
+  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+  Renderer::Instance instance =
+      Renderer::Create(glfwExtensions, glfwExtensionCount);
+
+  // Hack. Figure out how to hide this. Create a surface.
+  CreateVkSurfance(instance, window);
+
+  // Create a device and swapchain.
+  Renderer::Device device = Renderer::CreateDevice(instance);
+  Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
+
+  RenderGraph render_graph_(device);
+  render_graph_.BuildSwapChain(1980, 1200);
+
+  CubePass cube_pass;
+  CreateCubePass(cube_pass, device, command_pool, render_graph_);
+
+  std::chrono::high_resolution_clock::time_point time =
+      std::chrono::high_resolution_clock::now();
+  float rotation = 0.0f;
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+
+    // Get the delta time.
+    std::chrono::high_resolution_clock::time_point current_time =
+        std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_time = current_time - time;
+    time = current_time;
+    double delta_seconds = elapsed_time.count();
+    rotation += static_cast<float>(delta_seconds);
+
+    render_graph_.BeginFrame();
+    render_graph_.AddPass(
+        "Cube",
+        [&](RenderGraphBuilder& builder) {
+          builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
+        },
+        [&](RenderContext* context, const RenderGraphCache* cache) {
+          glm::mat4 perspective = glm::perspectiveFov(
+              glm::radians(45.0f), 1980.0f, 1200.0f, 0.1f, 100.0f);
+          perspective[1][1] *= -1.0f;
+          glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 2.5f, -5.0f),
+                                       glm::vec3(0.0f, 0.0f, 0.0f),
+                                       glm::vec3(0.0f, 1.0f, 0.0f));
+          glm::mat4 mvp = perspective * view *
+                          glm::mat4_cast(glm::angleAxis(
+                              rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
+          memcpy(Renderer::MapBuffer(cube_pass.uniform_buffer_mvp), &mvp,
+                 sizeof(mvp));
+          Renderer::UnmapBuffer(cube_pass.uniform_buffer_mvp);
+          RenderCube(context, cube_pass);
+        });
+    render_graph_.Render();
+  }
+
+  render_graph_.Destroy();
+  DestroyCubePass(device, cube_pass);
+
+  Renderer::DestroyCommandPool(command_pool);
+  Renderer::DestroyDevice(device);
+  Renderer::Destroy(instance);
+  Shutdown(window);
+}
+
+int main() {
+  try {
+    Run();
+  } catch (const std::exception& e) {
+    std::cerr << e.what() << std::endl;
+    return EXIT_FAILURE;
+  }
+  return 0;
+}
+
+// Support functions.
+void RenderCube(RenderContext* context, CubePass& pass) {
+  Renderer::CommandBuffer cmd = context->cmd;
+
+  Renderer::CmdBindPipeline(cmd, pass.pipeline);
+  Renderer::CmdBindVertexBuffers(cmd, 0, 1, &pass.vertex_buffer);
+  Renderer::CmdBindIndexBuffer(cmd, pass.index_buffer,
+                               Renderer::IndexType::kUInt32);
+  Renderer::CmdBindDescriptorSets(cmd, 0, pass.pipeline_layout, 0, 1,
+                                  &pass.descriptor_set);
+  Renderer::CmdDrawIndexed(cmd, 6 * 6);
+}
+
+void DestroyCubePass(Renderer::Device device, CubePass& pass) {
+  Renderer::DestroyDescriptorSetPool(pass.descriptor_set_pool);
+  Renderer::DestroyDescriptorSetLayout(pass.descriptor_layout);
+
+  Renderer::DestroySampler(device, pass.sampler);
+  Renderer::DestroyImageView(device, pass.image_view);
+  Renderer::DestroyImage(pass.image);
+
+  Renderer::DestroyBuffer(pass.vertex_buffer);
+  Renderer::DestroyBuffer(pass.index_buffer);
+  Renderer::DestroyBuffer(pass.uniform_buffer_color);
+  Renderer::DestroyBuffer(pass.uniform_buffer_mvp);
+
+  Renderer::DestroyPipelineLayout(device, pass.pipeline_layout);
+  Renderer::DestroyGraphicsPipeline(pass.pipeline);
+
+  Renderer::DestroyRenderPass(pass.render_pass);
+}
+
 void CreateCubePass(CubePass& pass, Renderer::Device device,
                     Renderer::CommandPool command_pool,
                     const RenderGraph& graph) {
@@ -201,121 +322,6 @@ void CreateCubePass(CubePass& pass, Renderer::Device device,
   Renderer::UpdateDescriptorSets(device, 3, write);
 }
 
-void RenderCube(RenderContext* context, CubePass& pass) {
-  Renderer::CommandBuffer cmd = context->cmd;
-
-  Renderer::CmdBindPipeline(cmd, pass.pipeline);
-  Renderer::CmdBindVertexBuffers(cmd, 0, 1, &pass.vertex_buffer);
-  Renderer::CmdBindIndexBuffer(cmd, pass.index_buffer,
-                               Renderer::IndexType::kUInt32);
-  Renderer::CmdBindDescriptorSets(cmd, 0, pass.pipeline_layout, 0, 1,
-                                  &pass.descriptor_set);
-  Renderer::CmdDrawIndexed(cmd, 6 * 6);
-}
-
-void DestroyCubePass(Renderer::Device device, CubePass& pass) {
-  Renderer::DestroyDescriptorSetPool(pass.descriptor_set_pool);
-  Renderer::DestroyDescriptorSetLayout(pass.descriptor_layout);
-
-  Renderer::DestroySampler(device, pass.sampler);
-  Renderer::DestroyImageView(device, pass.image_view);
-  Renderer::DestroyImage(pass.image);
-
-  Renderer::DestroyBuffer(pass.vertex_buffer);
-  Renderer::DestroyBuffer(pass.index_buffer);
-  Renderer::DestroyBuffer(pass.uniform_buffer_color);
-  Renderer::DestroyBuffer(pass.uniform_buffer_mvp);
-
-  Renderer::DestroyPipelineLayout(device, pass.pipeline_layout);
-  Renderer::DestroyGraphicsPipeline(pass.pipeline);
-
-  Renderer::DestroyRenderPass(pass.render_pass);
-}
-
-void Run() {
-  std::cout << "Hello Vulkan" << std::endl;
-
-  // Create a window.
-  GLFWwindow* window = InitWindow();
-
-  // Create the renderer instance (in this case Vulkan).
-  uint32_t glfwExtensionCount = 0;
-  const char** glfwExtensions;
-  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-  Renderer::Instance instance =
-      Renderer::Create(glfwExtensions, glfwExtensionCount);
-
-  // Hack. Figure out how to hide this. Create a surface.
-  CreateVkSurfance(instance, window);
-
-  // Create a device and swapchain.
-  Renderer::Device device = Renderer::CreateDevice(instance);
-  Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
-
-  RenderGraph render_graph_(device);
-  render_graph_.BuildSwapChain(1980, 1200);
-
-  CubePass cube_pass;
-  CreateCubePass(cube_pass, device, command_pool, render_graph_);
-
-  std::chrono::high_resolution_clock::time_point time =
-      std::chrono::high_resolution_clock::now();
-  float rotation = 0.0f;
-  while (!glfwWindowShouldClose(window)) {
-    glfwPollEvents();
-
-    // Get the delta time.
-    std::chrono::high_resolution_clock::time_point current_time =
-        std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed_time = current_time - time;
-    time = current_time;
-    double delta_seconds = elapsed_time.count();
-    rotation += static_cast<float>(delta_seconds);
-
-    render_graph_.BeginFrame();
-    render_graph_.AddPass(
-        "Cube",
-        [&](RenderGraphBuilder& builder) {
-          builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
-        },
-        [&](RenderContext* context, const RenderGraphCache* cache) {
-          glm::mat4 perspective = glm::perspectiveFov(
-              glm::radians(45.0f), 1980.0f, 1200.0f, 0.1f, 100.0f);
-          perspective[1][1] *= -1.0f;
-          glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 2.5f, -5.0f),
-                                       glm::vec3(0.0f, 0.0f, 0.0f),
-                                       glm::vec3(0.0f, 1.0f, 0.0f));
-          glm::mat4 mvp = perspective * view *
-                          glm::mat4_cast(glm::angleAxis(
-                              rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
-          memcpy(Renderer::MapBuffer(cube_pass.uniform_buffer_mvp), &mvp,
-                 sizeof(mvp));
-          Renderer::UnmapBuffer(cube_pass.uniform_buffer_mvp);
-          RenderCube(context, cube_pass);
-        });
-    render_graph_.Render();
-  }
-
-  render_graph_.Destroy();
-  DestroyCubePass(device, cube_pass);
-
-  Renderer::DestroyCommandPool(command_pool);
-  Renderer::DestroyDevice(device);
-  Renderer::Destroy(instance);
-  Shutdown(window);
-}
-
-int main() {
-  try {
-    Run();
-  } catch (const std::exception& e) {
-    std::cerr << e.what() << std::endl;
-    return EXIT_FAILURE;
-  }
-  return 0;
-}
-
-// Support functions.
 namespace Renderer {
 extern VkInstance GetVkInstance(Instance instance);
 void SetSurface(Instance instance, VkSurfaceKHR surface);

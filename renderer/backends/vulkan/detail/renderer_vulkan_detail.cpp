@@ -420,8 +420,6 @@ VmaMemoryUsage MemoryUsageToVulkanMemoryAllocator(MemoryUsage usage) {
 }
 
 void DebugAsserts() {
-  std::cout << sizeof(VkClearValue) << ", " << sizeof(Renderer::ClearValue)
-            << std::endl;
   assert(sizeof(VkClearValue) == sizeof(Renderer::ClearValue));
   assert(sizeof(VkDescriptorSet) == sizeof(DescriptorSet));
   assert(sizeof(ImageView) == sizeof(VkImageView));
