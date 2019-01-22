@@ -5,6 +5,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <GLM/glm.hpp>
+
 #include <renderer/renderer.h>
 #include "render_graph/render_graph.h"
 #include "samples/common/util.h"
@@ -16,7 +18,7 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
 GLFWwindow* InitWindow();
 void Shutdown(GLFWwindow* window);
 
-struct QuadPass {
+struct CubePass {
   Renderer::Buffer vertex_buffer;
   Renderer::Buffer index_buffer;
   Renderer::Buffer uniform_buffer_offset;
@@ -36,18 +38,18 @@ struct QuadPass {
   Renderer::GraphicsPipeline pipeline;
 };
 
-void CompileQuadPass(QuadPass& pass, Renderer::Device device,
-                     Renderer::CommandPool command_pool,
-                     const RenderGraph& graph) {
-  // Create the quad.
-  std::vector<float> quad = {-0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 0.0,  //
+void CreateCubePass(CubePass& pass, Renderer::Device device,
+                    Renderer::CommandPool command_pool,
+                    const RenderGraph& graph) {
+  // Create the cube.
+  std::vector<float> cube = {-0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 0.0,  //
                              0.5,  0.5,  1.0, 1.0, 0.0, 0.0, 1.0,  //
                              -0.5, 0.5,  0.0, 1.0, 0.0, 1.0, 0.0,  //
                              0.5,  -0.5, 1.0, 0.0, 1.0, 1.0, 1.0};
   pass.vertex_buffer = Renderer::CreateBuffer(
       device, Renderer::BufferType::kVertex, sizeof(float) * 4 * 7,
       Renderer::MemoryUsage::kGpu);
-  Renderer::StageCopyDataToBuffer(command_pool, pass.vertex_buffer, quad.data(),
+  Renderer::StageCopyDataToBuffer(command_pool, pass.vertex_buffer, cube.data(),
                                   sizeof(float) * 4 * 7);
 
   // Create the index buffer in GPU memory and copy the data.
@@ -105,12 +107,6 @@ void CompileQuadPass(QuadPass& pass, Renderer::Device device,
       Renderer::ImageLayout::kPresentSrcKHR;
   pass_info.color_attachments[0].format =
       Renderer::GetSwapChainImageFormat(graph.GetSwapChain());
-  static bool first = true;
-  if (first) {
-    first = false;
-    pass_info.color_attachments[0].format =
-        Renderer::TextureFormat::kR8G8B8A8_UNORM;
-  }
   pass.render_pass = Renderer::CreateRenderPass(device, pass_info);
 
   // Create a pipeline.
@@ -163,7 +159,7 @@ void CompileQuadPass(QuadPass& pass, Renderer::Device device,
   Renderer::UpdateDescriptorSets(device, 3, write);
 }
 
-void RenderQuad(RenderContext* context, QuadPass& pass) {
+void RenderCube(RenderContext* context, CubePass& pass) {
   Renderer::CommandBuffer cmd = context->cmd;
 
   Renderer::CmdBindPipeline(cmd, pass.pipeline);
@@ -175,7 +171,7 @@ void RenderQuad(RenderContext* context, QuadPass& pass) {
   Renderer::CmdDrawIndexed(cmd, 6);
 }
 
-void DestroyQuadPass(Renderer::Device device, QuadPass& pass) {
+void DestroyCubePass(Renderer::Device device, CubePass& pass) {
   Renderer::DestroyDescriptorSetPool(pass.descriptor_set_pool);
   Renderer::DestroyDescriptorSetLayout(pass.descriptor_layout);
 
@@ -194,7 +190,7 @@ void DestroyQuadPass(Renderer::Device device, QuadPass& pass) {
   Renderer::DestroyRenderPass(pass.render_pass);
 }
 
-void UpdateDescriptorSetTexture(Renderer::Device device, QuadPass& pass,
+void UpdateDescriptorSetTexture(Renderer::Device device, CubePass& pass,
                                 Renderer::ImageView image_view) {
   Renderer::WriteDescriptorSet write[3];
   Renderer::DescriptorBufferInfo offset_buffer;
@@ -250,15 +246,8 @@ void Run() {
   RenderGraph render_graph_(device);
   render_graph_.BuildSwapChain(1980, 1200);
 
-  QuadPass example_pass_1;
-  QuadPass example_pass_2;
-
-  CompileQuadPass(example_pass_1, device, command_pool, render_graph_);
-  CompileQuadPass(example_pass_2, device, command_pool, render_graph_);
-  float offsets[] = {-0.5f, 0.0f, 0.0f, 0.0f};
-  memcpy(Renderer::MapBuffer(example_pass_2.uniform_buffer_offset), offsets,
-         sizeof(float) * 4);
-  Renderer::UnmapBuffer(example_pass_2.uniform_buffer_offset);
+  CubePass cube_pass;
+  CreateCubePass(cube_pass, device, command_pool, render_graph_);
 
   std::chrono::high_resolution_clock::time_point time =
       std::chrono::high_resolution_clock::now();
@@ -273,41 +262,19 @@ void Run() {
     double delta_seconds = elapsed_time.count();
 
     render_graph_.BeginFrame();
-
-    RenderGraphResource texture;
     render_graph_.AddPass(
-        "right quad",
+        "Cube",
         [&](RenderGraphBuilder& builder) {
-          RenderGraphTextureCreateInfo info;
-          info.width = 1980;
-          info.height = 1200;
-          info.clear_values.color.b = 1.0f;
-          info.format = Renderer::TextureFormat::kR8G8B8A8_UNORM;
-          info.load_op = Renderer::AttachmentLoadOp::kClear;
-          texture = builder.CreateRenderTarget(info).textures[0];
-        },
-        [&](RenderContext* context, const RenderGraphCache* cache) {
-          RenderQuad(context, example_pass_1);
-        });
-
-    render_graph_.AddPass(
-        "left quad",
-        [&](RenderGraphBuilder& builder) {
-          builder.Read(texture);
           builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
         },
         [&](RenderContext* context, const RenderGraphCache* cache) {
-          UpdateDescriptorSetTexture(device, example_pass_2,
-                                     cache->GetTexture(texture).image_view);
-          RenderQuad(context, example_pass_2);
+          RenderCube(context, cube_pass);
         });
-
     render_graph_.Render();
   }
 
   render_graph_.Destroy();
-  DestroyQuadPass(device, example_pass_1);
-  DestroyQuadPass(device, example_pass_2);
+  DestroyCubePass(device, cube_pass);
 
   Renderer::DestroyCommandPool(command_pool);
   Renderer::DestroyDevice(device);
@@ -347,9 +314,9 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
 
   Renderer::GraphicsPipelineCreateInfo info;
   auto vert =
-      util::ReadFile("samples/render_graph/simple/data/triangle.vert.spv");
+      util::ReadFile("samples/render_graph/gltf/data/triangle.vert.spv");
   auto frag =
-      util::ReadFile("samples/render_graph/simple/data/triangle.frag.spv");
+      util::ReadFile("samples/render_graph/gltf/data/triangle.frag.spv");
   info.vertex.code = reinterpret_cast<const uint32_t*>(vert.data());
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
@@ -363,10 +330,6 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
       {Renderer::VertexAttributeType::kVec3, sizeof(float) * 4});
   info.layout = layout;
 
-  info.states.viewport.viewports.emplace_back(
-      Renderer::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
-  info.states.blend.attachments.resize(1);
-  info.states.rasterization.front_face = Renderer::FrontFace::kClockwise;
   pipeline = Renderer::CreateGraphicsPipeline(device, pass, info);
 
   return pipeline;
