@@ -302,11 +302,6 @@ struct DescriptorSetLayoutBinding {
 };
 struct DescriptorSetLayoutCreateInfo {
   std::vector<DescriptorSetLayoutBinding> bindings;
-
-  DescriptorSetLayoutCreateInfo() = default;
-  DescriptorSetLayoutCreateInfo(
-      std::initializer_list<DescriptorSetLayoutBinding> init_list)
-      : bindings(std::move(init_list)) {}
 };
 
 DescriptorSetLayout CreateDescriptorSetLayout(
