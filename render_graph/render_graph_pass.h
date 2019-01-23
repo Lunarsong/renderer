@@ -11,8 +11,17 @@ struct RenderContext {
   Renderer::Framebuffer framebuffer;
 };
 
+class Scope {
+ public:
+  Renderer::ImageView GetTexture(RenderGraphResource resource) const;
+
+ private:
+  friend class RenderGraphBuilder;
+  std::unordered_map<RenderGraphResource, Renderer::ImageView> textures_;
+};
+
 using RenderGraphRenderFn =
-    std::function<void(RenderContext* context, const RenderGraphCache* cache)>;
+    std::function<void(RenderContext* context, const Scope& scope)>;
 using RenderGraphSetupFn = std::function<void(RenderGraphBuilder&)>;
 
 struct RenderGraphPassInfo {
@@ -24,7 +33,9 @@ struct RenderGraphPass {
   RenderGraphRenderFn fn;
   RenderGraphSetupFn setup;
 
-  uint8_t count_ref = 0;
+  Scope scope;
+
+  uint8_t ref_count = 0;
 };
 
 struct RenderGraphCombinedRenderPasses {

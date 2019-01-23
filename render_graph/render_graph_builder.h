@@ -12,9 +12,12 @@ class RenderGraphBuilder {
  public:
   RenderGraphBuilder(RenderGraphCache* cache);
 
-  const RenderGraphFramebuffer& UseRenderTarget(RenderGraphResource resource);
-  const RenderGraphFramebuffer& CreateRenderTarget(
-      const RenderGraphTextureCreateInfo& info);
+  const RenderGraphResourceTextures& UseRenderTarget(
+      RenderGraphResource resource);
+  const RenderGraphResourceTextures& CreateRenderTarget(
+      RenderGraphTextureDesc info);
+  const RenderGraphResourceTextures& CreateRenderTarget(
+      RenderGraphFramebufferDesc info);
 
   void Write(RenderGraphResource resource);
   void Read(RenderGraphResource resource);
@@ -25,19 +28,49 @@ class RenderGraphBuilder {
   void Reset();
 
  private:
+  friend class RenderGraph;
+
   RenderGraphCache* cache_;
   RenderGraphPassHandle current_pass_;
 
-  std::unordered_map<RenderGraphMutableResource,
-                     std::vector<RenderGraphPassHandle>>
+  Generational::Manager handles_;
+
+  // Resources by use.
+  std::unordered_map<RenderGraphResource, std::vector<RenderGraphPassHandle>>
       reads_;
-  std::unordered_map<RenderGraphMutableResource,
-                     std::vector<RenderGraphPassHandle>>
+  std::unordered_map<RenderGraphResource, std::vector<RenderGraphPassHandle>>
       writes_;
-  std::unordered_map<RenderGraphMutableResource,
-                     std::vector<RenderGraphPassHandle>>
+  std::unordered_map<RenderGraphResource, std::vector<RenderGraphPassHandle>>
       render_targets_;
+
+  // Resources.
+  struct RenderGraphFramebufferResource {
+    RenderGraphFramebufferDesc desc;
+    RenderGraphFramebuffer framebuffer;
+    RenderGraphResourceTextures textures;
+
+    bool transient = true;
+    uint8_t ref_count = 0;
+  };
+
+  struct RenderGraphTextureResource {
+    RenderGraphTextureDesc desc;
+    Renderer::ImageView texture;
+
+    bool transient = true;
+    uint8_t ref_count = 0;
+  };
+
+  std::unordered_map<RenderGraphResource, RenderGraphFramebufferResource>
+      framebuffers_;
+  std::unordered_map<RenderGraphResource, RenderGraphTextureResource> textures_;
+
+  // Aliasing.
+  std::unordered_map<RenderGraphResource, RenderGraphResource> aliases_;
+  RenderGraphResource GetAlised(RenderGraphResource handle) const;
 
   // Debug info.
   uint8_t debug_current_pass_render_targets_ = 0;
+
+  RenderGraphResource CreateTexture(RenderGraphTextureDesc info);
 };

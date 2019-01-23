@@ -89,12 +89,16 @@ void Run() {
     rotation += static_cast<float>(delta_seconds);
 
     render_graph_.BeginFrame();
+    RenderGraphResource output;
     render_graph_.AddPass(
         "Cube",
         [&](RenderGraphBuilder& builder) {
-          builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
+          output =
+              builder
+                  .CreateRenderTarget(render_graph_.GetSwapChainDescription())
+                  .textures[0];
         },
-        [&](RenderContext* context, const RenderGraphCache* cache) {
+        [&](RenderContext* context, const Scope& scope) {
           glm::mat4 perspective = glm::perspectiveFov(
               glm::radians(45.0f), 1980.0f, 1200.0f, 0.1f, 100.0f);
           perspective[1][1] *= -1.0f;
@@ -109,6 +113,8 @@ void Run() {
           Renderer::UnmapBuffer(cube_pass.uniform_buffer_mvp);
           RenderCube(context, cube_pass);
         });
+    render_graph_.MoveSubresource(output,
+                                  render_graph_.GetBackbufferResource());
     render_graph_.Render();
   }
 

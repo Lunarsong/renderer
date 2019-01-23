@@ -1,5 +1,6 @@
 #include "render_graph.h"
 
+#include <cassert>
 #include <iostream>
 
 RenderGraph::RenderGraph(Renderer::Device device)
@@ -39,10 +40,6 @@ void RenderGraph::DestroySwapChain() {
     Renderer::DestroyRenderPass(backbuffer_render_pass_);
     backbuffer_render_pass_ = Renderer::kInvalidHandle;
   }
-  for (auto it : backbuffer_framebuffers_) {
-    Renderer::DestroyFramebuffer(it);
-  }
-  backbuffer_framebuffers_.clear();
 
   if (swapchain_ != Renderer::kInvalidHandle) {
     Renderer::DestroySwapChain(swapchain_);
@@ -56,35 +53,12 @@ void RenderGraph::BuildSwapChain(uint32_t width, uint32_t height) {
   swapchain_ = Renderer::CreateSwapChain(device_, width, height);
   const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain_);
   max_frames_in_flight = 1;  // swapchain_length;
-  swapchain_width_ = width;
-  swapchain_height_ = height;
 
-  // Create a render pass for the swapchain.
-  Renderer::RenderPassCreateInfo render_pass_info;
-  render_pass_info.color_attachments.resize(1);
-  render_pass_info.color_attachments[0].format =
-      Renderer::GetSwapChainImageFormat(swapchain_);
-  render_pass_info.color_attachments[0].load_op =
-      Renderer::AttachmentLoadOp::kClear;
-  render_pass_info.color_attachments[0].store_op =
-      Renderer::AttachmentStoreOp::kStore;
-  render_pass_info.color_attachments[0].final_layout =
-      Renderer::ImageLayout::kPresentSrcKHR;
-  backbuffer_render_pass_ =
-      Renderer::CreateRenderPass(device_, render_pass_info);
-
-  // Create framebuffers for the swapchain.
-  backbuffer_framebuffers_.resize(swapchain_length);
-  uint32_t i = 0;
-  for (auto& it : backbuffer_framebuffers_) {
-    Renderer::FramebufferCreateInfo info;
-    info.pass = backbuffer_render_pass_;
-    info.width = swapchain_width_;
-    info.height = swapchain_height_;
-    info.attachments.push_back(Renderer::GetSwapChainImageView(swapchain_, i));
-    it = Renderer::CreateFramebuffer(device_, info);
-    ++i;
-  }
+  swapchain_desc_.width = width;
+  swapchain_desc_.height = height;
+  swapchain_desc_.format = Renderer::GetSwapChainImageFormat(swapchain_);
+  swapchain_desc_.load_op = Renderer::AttachmentLoadOp::kClear;
+  swapchain_desc_.layout = Renderer::ImageLayout::kPresentSrcKHR;
 
   CreateSyncObjects();
 }
@@ -92,10 +66,9 @@ void RenderGraph::BuildSwapChain(uint32_t width, uint32_t height) {
 std::vector<RenderGraphNode> RenderGraph::Compile() {
   AddPass("Present",
           [this](RenderGraphBuilder& builder) {
-            builder.Read(mutable_backbuffer_);
-            builder.UseRenderTarget(mutable_backbuffer_);
+            builder.Read(backbuffer_resource_);
           },
-          [this](RenderContext* context, const RenderGraphCache* cache) {});
+          [this](RenderContext* context, const Scope& scope) {});
 
   return builder_.Build(passes_);
 }
@@ -175,7 +148,7 @@ Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
                                  render_pass.framebuffer.clear_values.size()),
                              render_pass.framebuffer.clear_values.data()));
         for (auto& pass : render_pass.passes) {
-          pass->fn(&context, &cache_);
+          pass->fn(&context, pass->scope);
         }
         Renderer::CmdEndRenderPass(context.cmd);
       }
@@ -217,16 +190,13 @@ void RenderGraph::AquireBackbuffer() {
   Renderer::AcquireNextImage(swapchain_, std::numeric_limits<uint64_t>::max(),
                              present_semaphores_[current_frame_], &image_index);
   current_backbuffer_image_ = image_index;
-
-  RenderGraphFramebuffer buffer;
-  buffer.pass = backbuffer_render_pass_;
-  buffer.framebuffer = backbuffer_framebuffers_[image_index];
-  buffer.clear_values.emplace_back();
-  mutable_backbuffer_ = cache_.AddFramebuffer(buffer);
+  backbuffer_resource_ =
+      ImportTexture(swapchain_desc_,
+                    Renderer::GetSwapChainImageView(swapchain_, image_index));
 }
 
-RenderGraphMutableResource RenderGraph::GetBackbufferFramebuffer() const {
-  return mutable_backbuffer_;
+RenderGraphResource RenderGraph::GetBackbufferResource() const {
+  return backbuffer_resource_;
 }
 
 void RenderGraph::CreateSyncObjects() {
@@ -278,8 +248,8 @@ void RenderGraph::DestroySyncObjects() {
   for (uint32_t i = 0; i < swapchain_length; ++i) {
     Renderer::FramebufferCreateInfo info;
     info.pass = pass->pass;
-    info.width = swapchain_width_;
-    info.height = swapchain_height_;
+    info.width = swapchain_desc_.width;
+    info.height = swapchain_desc_.height;
     info.attachments.push_back(Renderer::GetSwapChainImageView(swapchain_,
 i)); pass->frame_buffers[i] = Renderer::CreateFramebuffer(device_, info);
   }
@@ -295,3 +265,29 @@ i)); pass->frame_buffers[i] = Renderer::CreateFramebuffer(device_, info);
   }
 }
 */
+
+RenderGraphResource RenderGraph::ImportTexture(RenderGraphTextureDesc desc,
+                                               Renderer::ImageView texture) {
+  RenderGraphBuilder::RenderGraphTextureResource resource;
+  resource.transient = false;
+  resource.desc = std::move(desc);
+  resource.texture = texture;
+  auto handle = builder_.handles_.Create();
+  builder_.textures_[handle] = std::move(resource);
+  return handle;
+}
+
+void RenderGraph::MoveSubresource(RenderGraphResource from,
+                                  RenderGraphResource to) {
+  builder_.aliases_[from] = to;
+}
+
+const RenderGraphTextureDesc& RenderGraph::GetSwapChainDescription() const {
+  return swapchain_desc_;
+}
+
+Renderer::ImageView Scope::GetTexture(RenderGraphResource resource) const {
+  const auto& it = textures_.find(resource);
+  assert(it != textures_.cend());
+  return it->second;
+}

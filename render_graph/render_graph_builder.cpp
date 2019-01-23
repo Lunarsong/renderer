@@ -5,23 +5,50 @@
 RenderGraphBuilder::RenderGraphBuilder(RenderGraphCache* cache)
     : cache_(cache) {}
 
-const RenderGraphFramebuffer& RenderGraphBuilder::UseRenderTarget(
+const RenderGraphResourceTextures& RenderGraphBuilder::UseRenderTarget(
     RenderGraphResource resource) {
-  render_targets_[resource].emplace_back(current_pass_);
-  Write(resource);
   if (debug_current_pass_render_targets_++ > 0) {
     assert(false && "Must only have one render target per pass!");
   }
-  auto& fb = *cache_->GetFrameBuffer(resource);
-  for (auto it : fb.textures) {
-    Write(it);
+
+  render_targets_[resource].emplace_back(current_pass_);
+  auto& it = framebuffers_.find(resource);
+  assert(it != framebuffers_.cend() && "Invalid render target!");
+  ++it->second.ref_count;
+  for (auto texture : it->second.textures.textures) {
+    Write(texture);
   }
-  return fb;
+  return it->second.textures;
 }
 
-const RenderGraphFramebuffer& RenderGraphBuilder::CreateRenderTarget(
-    const RenderGraphTextureCreateInfo& info) {
-  return UseRenderTarget(cache_->CreateTransientFramebuffer(info));
+const RenderGraphResourceTextures& RenderGraphBuilder::CreateRenderTarget(
+    RenderGraphTextureDesc info) {
+  RenderGraphFramebufferDesc framebuffer_info = {{info}};
+  return CreateRenderTarget(framebuffer_info);
+}
+
+const RenderGraphResourceTextures& RenderGraphBuilder::CreateRenderTarget(
+    RenderGraphFramebufferDesc info) {
+  auto handle = handles_.Create();
+
+  RenderGraphFramebufferResource resource;
+  for (const auto& it : info.textures) {
+    resource.textures.textures.emplace_back(CreateTexture(it));
+  }
+  resource.desc = std::move(info);
+  framebuffers_[handle] = std::move(resource);
+
+  return UseRenderTarget(handle);
+}
+
+RenderGraphResource RenderGraphBuilder::CreateTexture(
+    RenderGraphTextureDesc info) {
+  auto handle = handles_.Create();
+
+  RenderGraphTextureResource resource;
+  resource.desc = std::move(info);
+  textures_[handle] = std::move(resource);
+  return handle;
 }
 
 void RenderGraphBuilder::Write(RenderGraphResource resource) {
@@ -33,6 +60,58 @@ void RenderGraphBuilder::Read(RenderGraphResource resource) {
 
 std::vector<RenderGraphNode> RenderGraphBuilder::Build(
     std::vector<RenderGraphPass>& passes) {
+  // Handle aliasing.
+  for (const auto& alias : aliases_) {
+    const auto& writes = writes_.find(alias.first);
+    if (writes != writes_.cend()) {
+      auto& new_resource = writes_[GetAlised(alias.first)];
+      new_resource.insert(new_resource.begin(), writes->second.begin(),
+                          writes->second.end());
+      writes_.erase(writes);
+    }
+
+    const auto& reads = reads_.find(alias.first);
+    if (reads != reads_.cend()) {
+      auto& new_resource = reads_[GetAlised(alias.first)];
+      new_resource.insert(new_resource.begin(), reads->second.begin(),
+                          reads->second.end());
+      reads_.erase(reads);
+    }
+
+    const auto& render_targets = render_targets_.find(alias.first);
+    if (render_targets != render_targets_.cend()) {
+      auto& new_resource = render_targets_[GetAlised(alias.first)];
+      new_resource.insert(new_resource.begin(), render_targets->second.begin(),
+                          render_targets->second.end());
+      render_targets_.erase(render_targets);
+    }
+  }
+
+  // Create the resources.
+  for (auto& it : textures_) {
+    auto& texture = it.second;
+    if (texture.transient) {
+      texture.texture = cache_->CreateTransientTexture(texture.desc);
+    }
+  }
+
+  for (auto& it : framebuffers_) {
+    auto& framebuffer = it.second;
+    for (auto& texture_handle : framebuffer.textures.textures) {
+      texture_handle = GetAlised(texture_handle);
+    }
+
+    if (framebuffer.transient) {
+      std::vector<Renderer::ImageView> images;
+      images.reserve(framebuffer.textures.textures.size());
+      for (const auto& texture_handle : framebuffer.textures.textures) {
+        images.emplace_back(textures_[texture_handle].texture);
+      }
+      framebuffer.framebuffer =
+          cache_->CreateTransientFramebuffer(framebuffer.desc, images);
+    }
+  }
+
   // TODO:
   // 1. Optimize the culling algorithm.
   // 2. Add proper semaphore generation according to dependencies.
@@ -60,7 +139,7 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
   // For every writer, add a reference count for each resource they write to.
   for (const auto& writers : writes_) {
     for (auto writer : writers.second) {
-      ++passes[writer].count_ref;
+      ++passes[writer].ref_count;
     }
   }
 
@@ -70,7 +149,7 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
     if (readers == reads_.end()) {
       // No one is data, reduce refence count of writers.
       for (auto& writer : writers.second) {
-        if (--passes[writer].count_ref == 0) {
+        if (--passes[writer].ref_count == 0) {
           culled[writer] = true;
         }
       }
@@ -78,12 +157,9 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
   }
 
   for (auto& render_target : render_targets_) {
-    auto* framebuffer = cache_->GetFrameBuffer(render_target.first);
-    assert(framebuffer);
-
     RenderGraphNode node;
     RenderGraphCombinedRenderPasses render_node;
-    render_node.framebuffer = *framebuffer;
+    render_node.framebuffer = framebuffers_[render_target.first].framebuffer;
     for (auto& it : render_target.second) {
       if (culled[it]) {
         continue;
@@ -130,16 +206,41 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
     it.render_cmd = cache_->AllocateCommand();
   }
 
+  // Build scopes.
+  for (const auto& readers : reads_) {
+    for (auto reader : readers.second) {
+      if (culled[reader]) {
+        continue;
+      }
+      passes[reader].scope.textures_[readers.first] =
+          textures_[readers.first].texture;
+    }
+  }
+
   return nodes;
 }
 
 void RenderGraphBuilder::Reset() {
+  handles_.Reset();
   reads_.clear();
   writes_.clear();
   render_targets_.clear();
+  framebuffers_.clear();
+  textures_.clear();
 }
 
 void RenderGraphBuilder::SetCurrentPass(RenderGraphPassHandle pass) {
   current_pass_ = pass;
   debug_current_pass_render_targets_ = 0;
+}
+
+RenderGraphResource RenderGraphBuilder::GetAlised(
+    RenderGraphResource handle) const {
+  std::unordered_map<RenderGraphResource, RenderGraphResource>::const_iterator
+      it = aliases_.find(handle);
+  while (it != aliases_.cend()) {
+    handle = it->second;
+    it = aliases_.find(handle);
+  }
+  return handle;
 }

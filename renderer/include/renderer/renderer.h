@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <initializer_list>
 #include <vector>
-#include "renderer_texture.h"
 #include "renderer_pipelines.h"
+#include "renderer_texture.h"
 
 namespace Renderer {
 using HandleType = uint64_t;

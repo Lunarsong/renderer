@@ -108,8 +108,8 @@ void CompileQuadPass(QuadPass& pass, Renderer::Device device,
   static bool first = true;
   if (first) {
     first = false;
-    pass_info.color_attachments[0].format =
-        Renderer::TextureFormat::kR8G8B8A8_UNORM;
+    pass_info.color_attachments[0].final_layout =
+        Renderer::ImageLayout::kShaderReadOnlyOptimal;
   }
   pass.render_pass = Renderer::CreateRenderPass(device, pass_info);
 
@@ -278,30 +278,32 @@ void Run() {
     render_graph_.AddPass(
         "right quad",
         [&](RenderGraphBuilder& builder) {
-          RenderGraphTextureCreateInfo info;
-          info.width = 1980;
-          info.height = 1200;
-          info.clear_values.color.b = 1.0f;
-          info.format = Renderer::TextureFormat::kR8G8B8A8_UNORM;
-          info.load_op = Renderer::AttachmentLoadOp::kClear;
-          texture = builder.CreateRenderTarget(info).textures[0];
+          auto desc = render_graph_.GetSwapChainDescription();
+          desc.layout = Renderer::ImageLayout::kShaderReadOnlyOptimal;
+          texture = builder.CreateRenderTarget(desc).textures[0];
         },
-        [&](RenderContext* context, const RenderGraphCache* cache) {
+        [&](RenderContext* context, const Scope& scope) {
           RenderQuad(context, example_pass_1);
         });
 
+    RenderGraphResource output;
     render_graph_.AddPass(
         "left quad",
         [&](RenderGraphBuilder& builder) {
           builder.Read(texture);
-          builder.UseRenderTarget(render_graph_.GetBackbufferFramebuffer());
+          output =
+              builder
+                  .CreateRenderTarget(render_graph_.GetSwapChainDescription())
+                  .textures[0];
         },
-        [&](RenderContext* context, const RenderGraphCache* cache) {
+        [&](RenderContext* context, const Scope& scope) {
           UpdateDescriptorSetTexture(device, example_pass_2,
-                                     cache->GetTexture(texture).image_view);
+                                     scope.GetTexture(texture));
           RenderQuad(context, example_pass_2);
         });
 
+    render_graph_.MoveSubresource(output,
+                                  render_graph_.GetBackbufferResource());
     render_graph_.Render();
   }
 

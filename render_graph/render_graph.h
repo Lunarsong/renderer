@@ -22,9 +22,16 @@ class RenderGraph {
 
   void AddPass(const std::string& name, RenderGraphSetupFn setup_fn,
                RenderGraphRenderFn render_fn);
-  Renderer::SwapChain GetSwapChain() const;
 
-  RenderGraphMutableResource GetBackbufferFramebuffer() const;
+  // Resources.
+  RenderGraphResource ImportTexture(RenderGraphTextureDesc desc,
+                                    Renderer::ImageView texture);
+  void MoveSubresource(RenderGraphResource from, RenderGraphResource to);
+
+  // Swapchain
+  Renderer::SwapChain GetSwapChain() const;
+  RenderGraphResource GetBackbufferResource() const;
+  const RenderGraphTextureDesc& GetSwapChainDescription() const;
 
  private:
   Renderer::Device device_;
@@ -39,15 +46,13 @@ class RenderGraph {
   uint32_t max_frames_in_flight = 1;
 
   // Swapchain information (should probably be moved elsewhere).
-  uint32_t swapchain_width_;
-  uint32_t swapchain_height_;
   uint32_t current_backbuffer_image_;
   Renderer::RenderPass backbuffer_render_pass_ = Renderer::kInvalidHandle;
-  std::vector<Renderer::Framebuffer> backbuffer_framebuffers_;
   std::vector<Renderer::Semaphore> present_semaphores_;
   std::vector<Renderer::Semaphore> backbuffer_complete_semaphores_;
   std::vector<Renderer::Fence> backbuffer_fences_;
-  RenderGraphMutableResource mutable_backbuffer_;
+  RenderGraphResource backbuffer_resource_;
+  RenderGraphTextureDesc swapchain_desc_;
 
   void CreateSyncObjects();
   void DestroySyncObjects();
