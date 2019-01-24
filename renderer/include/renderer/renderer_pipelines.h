@@ -302,4 +302,62 @@ struct GraphicsPipelineStateInfo {
   DynamicStateInfo dynamic_states;
 };
 
+// Descriptor sets.
+enum class DescriptorType {
+  kSampler = 0,
+  kCombinedImageSampler = 1,
+  kSampledImage = 2,
+  kStorageImage = 3,
+  kUniformTexelBuffer = 4,
+  kStorageTexelBuffer = 5,
+  kUniformBuffer = 6,
+  kStorageBuffer = 7,
+  kUniformBufferDynamic = 8,
+  kStorageBufferDynamic = 9,
+  kInputAttachment = 10,
+  kInlineUniformBlockExt = 1000138000,
+  kAccelerationStructureNV = 1000165000,
+};
+
+namespace ShaderStageFlagBits {
+enum ShaderStageFlagBits {
+  kVertexBit = 0x00000001,
+  kTessellationControlBit = 0x00000002,
+  kTessellationEvaluationBit = 0x00000004,
+  kGeometryBit = 0x00000008,
+  kFragmentBit = 0x00000010,
+  kComputeBit = 0x00000020,
+  kAllGraphics = 0x0000001F,
+  kAll = 0x7FFFFFFF,
+  kRayGenBitNV = 0x00000100,
+  kAnyHitBitNV = 0x00000200,
+  kClosestHitBitNV = 0x00000400,
+  kMissBitNV = 0x00000800,
+  kIntersectionBitNV = 0x00001000,
+  kCallableBitNV = 0x00002000,
+  kTaskBitNV = 0x00000040,
+  kMeshBitNV = 0x00000080,
+};
+}  // namespace ShaderStageFlagBits
+using ShaderStageFlags = uint32_t;
+
+struct DescriptorSetLayoutBinding {
+  DescriptorType type;
+  uint32_t count = 0;
+  ShaderStageFlags stages;
+};
+struct DescriptorSetLayoutCreateInfo {
+  std::vector<DescriptorSetLayoutBinding> bindings;
+};
+
+// Layout.
+struct PushConstantRange {
+  ShaderStageFlags flags;
+  uint32_t offset;
+  uint32_t size;
+
+  PushConstantRange(ShaderStageFlags flags, uint32_t offset, uint32_t size)
+      : flags(flags), offset(offset), size(size) {}
+};
+
 }  // namespace Renderer

@@ -331,22 +331,23 @@ void DestroyRenderPass(RenderPass pass_handle) {
   render_passes_.Destroy(pass_handle);
 }
 
-PipelineLayout CreatePipelineLayout(
-    Device device, const std::vector<DescriptorSetLayout>& info) {
+PipelineLayout CreatePipelineLayout(Device device,
+                                    const PipelineLayoutCreateInfo& info) {
   VkPipelineLayout layout;
 
   VkDescriptorSetLayout vk_layouts[256];
-  assert(info.size() <= 256);
-  for (size_t i = 0; i < info.size(); ++i) {
-    vk_layouts[i] = descriptor_set_layouts_[info[i]].layout;
+  assert(info.layouts.size() <= 256);
+  for (size_t i = 0; i < info.layouts.size(); ++i) {
+    vk_layouts[i] = descriptor_set_layouts_[info.layouts[i]].layout;
   }
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = info.size();
-  pipelineLayoutInfo.pSetLayouts = vk_layouts;       // Optional
-  pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
-  pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
+  pipelineLayoutInfo.setLayoutCount = info.layouts.size();
+  pipelineLayoutInfo.pSetLayouts = vk_layouts;
+  pipelineLayoutInfo.pushConstantRangeCount = info.push_constants.size();
+  pipelineLayoutInfo.pPushConstantRanges =
+      reinterpret_cast<const VkPushConstantRange*>(info.push_constants.data());
   if (vkCreatePipelineLayout(devices_[device].device, &pipelineLayoutInfo,
                              nullptr, &layout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
@@ -725,6 +726,14 @@ void CmdBindDescriptorSets(CommandBuffer cmd, int type, PipelineLayout layout,
                           reinterpret_cast<VkPipelineLayout>(layout), first,
                           count, reinterpret_cast<const VkDescriptorSet*>(sets),
                           dynamic_sets_count, dynamic_sets_offsets);
+}
+
+void CmdPushConstants(CommandBuffer cmd, PipelineLayout layout,
+                      ShaderStageFlags flags, uint32_t offset, uint32_t size,
+                      const void* values) {
+  vkCmdPushConstants(command_buffers_[cmd].buffer,
+                     reinterpret_cast<VkPipelineLayout>(layout), flags, offset,
+                     size, values);
 }
 
 void CmdDraw(CommandBuffer buffer, uint32_t vertex_count,

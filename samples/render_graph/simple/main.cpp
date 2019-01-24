@@ -92,23 +92,24 @@ void CompileQuadPass(QuadPass& pass, Renderer::Device device,
 
   // Create the pipeline.
   Renderer::DescriptorSetLayoutCreateInfo descriptor_layout_info = {
-      {{Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kVertexBit},
-       {Renderer::DescriptorType::kUniformBuffer, 1, Renderer::kFragmentBit},
+      {{Renderer::DescriptorType::kUniformBuffer, 1,
+        Renderer::ShaderStageFlagBits::kVertexBit},
+       {Renderer::DescriptorType::kUniformBuffer, 1,
+        Renderer::ShaderStageFlagBits::kFragmentBit},
        {Renderer::DescriptorType::kCombinedImageSampler, 1,
-        Renderer::kFragmentBit}}};
+        Renderer::ShaderStageFlagBits::kFragmentBit}}};
   pass.descriptor_layout =
       Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
 
   Renderer::RenderPassCreateInfo pass_info;
-  pass_info.color_attachments.resize(1);
-  pass_info.color_attachments[0].final_layout =
-      Renderer::ImageLayout::kPresentSrcKHR;
-  pass_info.color_attachments[0].format =
+  pass_info.attachments.resize(1);
+  pass_info.attachments[0].final_layout = Renderer::ImageLayout::kPresentSrcKHR;
+  pass_info.attachments[0].format =
       Renderer::GetSwapChainImageFormat(graph.GetSwapChain());
   static bool first = true;
   if (first) {
     first = false;
-    pass_info.color_attachments[0].final_layout =
+    pass_info.attachments[0].final_layout =
         Renderer::ImageLayout::kShaderReadOnlyOptimal;
   }
   pass.render_pass = Renderer::CreateRenderPass(device, pass_info);
