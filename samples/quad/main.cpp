@@ -59,6 +59,8 @@ void Run() {
       {{Renderer::DescriptorType::kUniformBuffer, 1,
         Renderer::ShaderStageFlagBits::kVertexBit},
        {Renderer::DescriptorType::kUniformBuffer, 1,
+        Renderer::ShaderStageFlagBits::kFragmentBit},
+       {Renderer::DescriptorType::kCombinedImageSampler, 1,
         Renderer::ShaderStageFlagBits::kFragmentBit}}};
   Renderer::DescriptorSetLayout descriptor_layout =
       Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
@@ -88,22 +90,24 @@ void Run() {
   Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
 
   // Create the vertex and index buffers. Copy the data using a staging buffer.
-  std::vector<float> triangle = {0.0,  -0.5, 1.0, 0.0, 0.0,  //
-                                 0.5,  0.5,  0.0, 0.0, 1.0,  //
-                                 -0.5, 0.5,  0.0, 1.0, 0.0};
+
+  std::vector<float> quad = {-0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 0.0,  //
+                             0.5,  0.5,  1.0, 1.0, 0.0, 0.0, 1.0,  //
+                             -0.5, 0.5,  0.0, 1.0, 0.0, 1.0, 0.0,  //
+                             0.5,  -0.5, 1.0, 0.0, 1.0, 1.0, 1.0};
   Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kVertex, sizeof(float) * triangle.size(),
+      device, Renderer::BufferType::kVertex, sizeof(float) * 4 * 7,
       Renderer::MemoryUsage::kGpu);
-  Renderer::StageCopyDataToBuffer(command_pool, vertex_buffer, triangle.data(),
-                                  sizeof(float) * triangle.size());
+  Renderer::StageCopyDataToBuffer(command_pool, vertex_buffer, quad.data(),
+                                  sizeof(float) * 4 * 7);
 
   // Create the index buffer in GPU memory and copy the data.
-  const uint32_t indices[] = {0, 1, 2};
+  const uint32_t indices[] = {0, 1, 2, 3, 1, 0};
   Renderer::Buffer index_buffer =
       Renderer::CreateBuffer(device, Renderer::BufferType::kIndex,
-                             sizeof(uint32_t) * 3, Renderer::MemoryUsage::kGpu);
+                             sizeof(uint32_t) * 6, Renderer::MemoryUsage::kGpu);
   Renderer::StageCopyDataToBuffer(command_pool, index_buffer, indices,
-                                  sizeof(uint32_t) * 3);
+                                  sizeof(uint32_t) * 6);
 
   float offsets[] = {0.5f, 0.0f, 0.0f, 0.0f};
   Renderer::Buffer uniform_buffer_offset = Renderer::CreateBuffer(
@@ -118,8 +122,26 @@ void Run() {
   memcpy(Renderer::MapBuffer(uniform_buffer_color), color, sizeof(float) * 4);
   Renderer::UnmapBuffer(uniform_buffer_color);
 
+  Renderer::Image image =
+      Renderer::CreateImage(device, {Renderer::TextureType::Texture2D,
+                                     Renderer::TextureFormat::kR8G8B8A8_UNORM,
+                                     Renderer::Extent3D(2, 2, 1)});
+  unsigned char pixels[] = {255, 0, 0,   255, 0,   255, 0,   255,
+                            0,   0, 255, 255, 255, 255, 255, 255};
+  Renderer::BufferImageCopy image_copy(0, 0, 0, 2, 2, 1);
+  Renderer::StageCopyDataToImage(command_pool, image, pixels, 2 * 2 * 4,
+                                 image_copy);
+  Renderer::ImageViewCreateInfo image_view_info(
+      image, Renderer::ImageViewType::Texture2D,
+      Renderer::TextureFormat::kR8G8B8A8_UNORM,
+      Renderer::ImageSubresourceRange(
+          Renderer::ImageAspectFlagBits::kColorBit));
+  Renderer::ImageView image_view =
+      Renderer::CreateImageView(device, image_view_info);
+  Renderer::Sampler sampler = Renderer::CreateSampler(device);
+
   for (auto it : descriptor_sets) {
-    Renderer::WriteDescriptorSet write[2];
+    Renderer::WriteDescriptorSet write[3];
     Renderer::DescriptorBufferInfo offset_buffer;
     offset_buffer.buffer = uniform_buffer_offset;
     offset_buffer.range = sizeof(float) * 4;
@@ -138,7 +160,16 @@ void Run() {
     write[1].descriptor_count = 1;
     write[1].type = Renderer::DescriptorType::kUniformBuffer;
 
-    Renderer::UpdateDescriptorSets(device, 2, write);
+    Renderer::DescriptorImageInfo image_info;
+    image_info.image_view = image_view;
+    image_info.sampler = sampler;
+    write[2].set = it;
+    write[2].binding = 2;
+    write[2].descriptor_count = 1;
+    write[2].type = Renderer::DescriptorType::kCombinedImageSampler;
+    write[2].images = &image_info;
+
+    Renderer::UpdateDescriptorSets(device, 3, write);
   }
 
   // Command buffers for every image in the swapchain.
@@ -157,7 +188,7 @@ void Run() {
                                  Renderer::IndexType::kUInt32);
     Renderer::CmdBindDescriptorSets(it, 0, pipeline_layout, 0, 1,
                                     &descriptor_sets[i]);
-    Renderer::CmdDrawIndexed(it, 3);
+    Renderer::CmdDrawIndexed(it, 6);
     Renderer::CmdEndRenderPass(it);
     Renderer::CmdEnd(it);
     ++i;
@@ -241,10 +272,13 @@ void Run() {
     Renderer::DestroySemaphore(it);
   }
   Renderer::DestroyDescriptorSetPool(set_pool);
+  Renderer::DestroyImageView(device, image_view);
+  Renderer::DestroyImage(image);
   Renderer::DestroyBuffer(uniform_buffer_color);
   Renderer::DestroyBuffer(uniform_buffer_offset);
   Renderer::DestroyBuffer(index_buffer);
   Renderer::DestroyBuffer(vertex_buffer);
+  Renderer::DestroySampler(device, sampler);
   Renderer::DestroyGraphicsPipeline(pipeline);
   Renderer::DestroyPipelineLayout(device, pipeline_layout);
   Renderer::DestroyDescriptorSetLayout(descriptor_layout);
@@ -286,8 +320,8 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
   Renderer::GraphicsPipeline pipeline = Renderer::kInvalidHandle;
 
   Renderer::GraphicsPipelineCreateInfo info;
-  auto vert = util::ReadFile("samples/triangle/data/triangle.vert.spv");
-  auto frag = util::ReadFile("samples/triangle/data/triangle.frag.spv");
+  auto vert = util::ReadFile("samples/quad/data/shader.vert.spv");
+  auto frag = util::ReadFile("samples/quad/data/shader.frag.spv");
   info.vertex.code = reinterpret_cast<const uint32_t*>(vert.data());
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
@@ -296,7 +330,9 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
   info.vertex_input[0].layout.push_back(
       {Renderer::VertexAttributeType::kVec2, 0});
   info.vertex_input[0].layout.push_back(
-      {Renderer::VertexAttributeType::kVec3, sizeof(float) * 2});
+      {Renderer::VertexAttributeType::kVec2, sizeof(float) * 2});
+  info.vertex_input[0].layout.push_back(
+      {Renderer::VertexAttributeType::kVec3, sizeof(float) * 4});
   info.layout = layout;
 
   info.states.viewport.viewports.emplace_back(
