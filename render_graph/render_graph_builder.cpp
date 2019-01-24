@@ -85,6 +85,10 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
                           render_targets->second.end());
       render_targets_.erase(render_targets);
     }
+
+    // Erase the resources to avoid creating data for them.
+    textures_.erase(alias.first);
+    framebuffers_.erase(alias.first);
   }
 
   // Create the resources.

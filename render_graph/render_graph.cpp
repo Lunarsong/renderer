@@ -222,50 +222,6 @@ void RenderGraph::DestroySyncObjects() {
   backbuffer_fences_.clear();
 }
 
-/*void RenderGraph::CompileRenderPass(RenderGraphPass* pass) {
-  static bool first = true;
-  Renderer::RenderPassCreateInfo render_pass_info;
-  render_pass_info.color_attachments.resize(1);
-  render_pass_info.color_attachments[0].format =
-      Renderer::GetSwapChainImageFormat(swapchain_);
-  if (first) {
-    render_pass_info.color_attachments[0].load_op =
-        Renderer::AttachmentLoadOp::kClear;
-  } else {
-    render_pass_info.color_attachments[0].load_op =
-        Renderer::AttachmentLoadOp::kLoad;
-  }
-  render_pass_info.color_attachments[0].store_op =
-      Renderer::AttachmentStoreOp::kStore;
-  render_pass_info.color_attachments[0].final_layout =
-      Renderer::ImageLayout::kPresentSrcKHR;
-  pass->pass = Renderer::CreateRenderPass(device_, render_pass_info);
-
-  first = false;
-
-  const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain_);
-  pass->frame_buffers.resize(swapchain_length);
-  for (uint32_t i = 0; i < swapchain_length; ++i) {
-    Renderer::FramebufferCreateInfo info;
-    info.pass = pass->pass;
-    info.width = swapchain_desc_.width;
-    info.height = swapchain_desc_.height;
-    info.attachments.push_back(Renderer::GetSwapChainImageView(swapchain_,
-i)); pass->frame_buffers[i] = Renderer::CreateFramebuffer(device_, info);
-  }
-
-  pass->command_buffers.resize(swapchain_length);
-  for (auto& it : pass->command_buffers) {
-    it = Renderer::CreateCommandBuffer(command_pool_);
-  }
-
-  pass->semaphores.resize(swapchain_length);
-  for (auto& it : pass->semaphores) {
-    it = Renderer::CreateSemaphore(device_);
-  }
-}
-*/
-
 RenderGraphResource RenderGraph::ImportTexture(RenderGraphTextureDesc desc,
                                                Renderer::ImageView texture) {
   RenderGraphBuilder::RenderGraphTextureResource resource;
