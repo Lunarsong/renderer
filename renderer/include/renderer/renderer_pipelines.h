@@ -127,7 +127,7 @@ enum class CompareOp {
   kGreater = 4,
   kNotEqual = 5,
   kGreaterOrEqual = 6,
-  kALways = 7,
+  kAlways = 7,
 };
 
 enum class StencilOp {
@@ -142,13 +142,13 @@ enum class StencilOp {
 };
 
 struct StencilOpState {
-  StencilOp fail_op;
-  StencilOp pass_op;
-  StencilOp depth_fail_op;
-  CompareOp compare_op;
-  uint32_t compare_mask;
-  uint32_t write_mask;
-  uint32_t reference;
+  StencilOp fail_op = StencilOp::kKeep;
+  StencilOp pass_op = StencilOp::kKeep;
+  StencilOp depth_fail_op = StencilOp::kKeep;
+  CompareOp compare_op = CompareOp::kAlways;
+  uint32_t compare_mask = 1;
+  uint32_t write_mask = 1;
+  uint32_t reference = 0;
 };
 
 struct DepthStencilState {

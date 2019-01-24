@@ -93,10 +93,18 @@ void Run() {
     render_graph_.AddPass(
         "Cube",
         [&](RenderGraphBuilder& builder) {
-          output =
-              builder
-                  .CreateRenderTarget(render_graph_.GetSwapChainDescription())
-                  .textures[0];
+          RenderGraphFramebufferDesc desc;
+          desc.textures.push_back(render_graph_.GetSwapChainDescription());
+          RenderGraphTextureDesc depth_desc;
+          depth_desc.format = Renderer::TextureFormat::kD32_SFLOAT;
+          depth_desc.width = desc.textures[0].width;
+          depth_desc.height = desc.textures[0].height;
+          depth_desc.load_op = Renderer::AttachmentLoadOp::kClear;
+          depth_desc.layout =
+              Renderer::ImageLayout::kDepthStencilAttachmentOptimal;
+          depth_desc.clear_values.depth_stencil.depth = 1.0f;
+          desc.textures.push_back(std::move(depth_desc));
+          output = builder.CreateRenderTarget(desc).textures[0];
         },
         [&](RenderContext* context, const Scope& scope) {
           glm::mat4 perspective = glm::perspectiveFov(
@@ -271,11 +279,13 @@ void CreateCubePass(CubePass& pass, Renderer::Device device,
       Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
 
   Renderer::RenderPassCreateInfo pass_info;
-  pass_info.color_attachments.resize(1);
-  pass_info.color_attachments[0].final_layout =
-      Renderer::ImageLayout::kPresentSrcKHR;
-  pass_info.color_attachments[0].format =
+  pass_info.attachments.resize(2);
+  pass_info.attachments[0].final_layout = Renderer::ImageLayout::kPresentSrcKHR;
+  pass_info.attachments[0].format =
       Renderer::GetSwapChainImageFormat(graph.GetSwapChain());
+  pass_info.attachments[1].final_layout =
+      Renderer::ImageLayout::kDepthStencilAttachmentOptimal;
+  pass_info.attachments[1].format = Renderer::TextureFormat::kD32_SFLOAT;
   pass.render_pass = Renderer::CreateRenderPass(device, pass_info);
 
   // Create a pipeline.
@@ -368,6 +378,8 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
   info.states.viewport.viewports.emplace_back(
       Renderer::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
   info.states.blend.attachments.resize(1);
+  info.states.depth_stencil.depth_write_enable = true;
+  info.states.depth_stencil.depth_test_enable = true;
   pipeline = Renderer::CreateGraphicsPipeline(device, pass, info);
 
   return pipeline;

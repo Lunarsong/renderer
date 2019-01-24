@@ -261,22 +261,32 @@ RenderPass CreateRenderPass(Device device_handle,
   RenderPassVk pass;
   pass.device = device_handle;
 
-  std::vector<VkAttachmentReference> color_attachment_refs(
-      info.color_attachments.size());
+  std::vector<VkAttachmentReference>
+      color_attachment_refs;  //(info.color_attachments.size());
+  std::vector<VkAttachmentReference>
+      depth_stencil_attachment_refs;  //(info.depth_stencil_attachments.size());
   uint32_t idx = 0;
-  for (const auto& it : info.color_attachments) {
-    color_attachment_refs[idx].attachment = idx;
-    color_attachment_refs[idx].layout =
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  for (const auto& it : info.attachments) {
+    VkAttachmentReference attachment;
+    attachment.attachment = idx;
+    attachment.layout = IsDepthStencilFormat(it.format)
+                            ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                            : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    if (attachment.layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+      depth_stencil_attachment_refs.emplace_back(std::move(attachment));
+    } else {
+      color_attachment_refs.emplace_back(std::move(attachment));
+    }
     ++idx;
   }
 
   VkSubpassDescription subpass = {};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-  subpass.colorAttachmentCount = idx;
+  subpass.colorAttachmentCount = color_attachment_refs.size();
   subpass.pColorAttachments = color_attachment_refs.data();
+  subpass.pDepthStencilAttachment = depth_stencil_attachment_refs.data();
 
-  VkSubpassDependency dependency[2] = {};
+  /*VkSubpassDependency dependency[2] = {};
   dependency[0].srcSubpass = VK_SUBPASS_EXTERNAL;
   dependency[0].dstSubpass = 0;
   dependency[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
@@ -293,19 +303,18 @@ RenderPass CreateRenderPass(Device device_handle,
   dependency[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
                                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   dependency[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-  dependency[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+  dependency[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;*/
 
   VkRenderPassCreateInfo renderPassInfo = {};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   renderPassInfo.attachmentCount =
-      static_cast<uint32_t>(info.color_attachments.size());
+      static_cast<uint32_t>(info.attachments.size());
   renderPassInfo.pAttachments =
-      reinterpret_cast<const VkAttachmentDescription*>(
-          info.color_attachments.data());
+      reinterpret_cast<const VkAttachmentDescription*>(info.attachments.data());
   renderPassInfo.subpassCount = 1;
   renderPassInfo.pSubpasses = &subpass;
-  renderPassInfo.dependencyCount = 2;
-  renderPassInfo.pDependencies = dependency;
+  renderPassInfo.dependencyCount = 0;
+  renderPassInfo.pDependencies = nullptr;
 
   if (vkCreateRenderPass(device.device, &renderPassInfo, nullptr, &pass.pass) !=
       VK_SUCCESS) {

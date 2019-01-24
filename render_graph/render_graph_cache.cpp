@@ -134,18 +134,16 @@ const RenderGraphFramebuffer& RenderGraphCache::CreateTransientFramebuffer(
     Renderer::AttachmentDescription attachment;
     attachment.final_layout = texture_desc.layout;
     attachment.format = texture_desc.format;
-    if (aspect_bits & Renderer::ImageAspectFlagBits::kColorBit) {
-      attachment.load_op = texture_desc.load_op;
-      attachment.store_op = Renderer::AttachmentStoreOp::kStore;
-      render_pass_info.color_attachments.emplace_back(std::move(attachment));
-    } else {
+    attachment.load_op = texture_desc.load_op;
+    attachment.store_op = Renderer::AttachmentStoreOp::kStore;
+    if (aspect_bits & Renderer::ImageAspectFlagBits::kDepthBit ||
+        aspect_bits & Renderer::ImageAspectFlagBits::kStencilBit) {
       attachment.load_op = texture_desc.load_op;
       attachment.store_op = Renderer::AttachmentStoreOp::kStore;
       attachment.stencil_load_op = texture_desc.load_op;
       attachment.stencil_store_op = Renderer::AttachmentStoreOp::kStore;
-      render_pass_info.depth_stencil_attachments.emplace_back(
-          std::move(attachment));
     }
+    render_pass_info.attachments.emplace_back(std::move(attachment));
   }
 
   buffer.resources.pass = Renderer::CreateRenderPass(device_, render_pass_info);

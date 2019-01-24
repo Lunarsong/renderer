@@ -137,8 +137,7 @@ struct AttachmentDescription {
 };
 
 struct RenderPassCreateInfo {
-  std::vector<AttachmentDescription> color_attachments;
-  std::vector<AttachmentDescription> depth_stencil_attachments;
+  std::vector<AttachmentDescription> attachments;
 };
 
 // Render pass.

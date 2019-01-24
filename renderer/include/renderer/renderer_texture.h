@@ -411,7 +411,5 @@ struct ImageSubresourceRange {
         layer_count(layer_count) {}
 };
 
-bool IsDepthFormat(TextureFormat format);
-bool IsStencilFormat(TextureFormat format);
 bool IsDepthStencilFormat(TextureFormat format);
 }  // namespace Renderer
