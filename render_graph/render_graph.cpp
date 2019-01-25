@@ -77,7 +77,7 @@ void RenderGraph::BeginFrame() {
   cache_.Reset();
   builder_.Reset();
   passes_.clear();
-  AquireBackbuffer();
+  AcquireBackbuffer();
 }
 
 void RenderGraph::Render() {
@@ -184,7 +184,7 @@ Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
 
 Renderer::SwapChain RenderGraph::GetSwapChain() const { return swapchain_; }
 
-void RenderGraph::AquireBackbuffer() {
+void RenderGraph::AcquireBackbuffer() {
   // Prepare the next swapchain frame buffer for rendering.
   uint32_t image_index;
   Renderer::AcquireNextImage(swapchain_, std::numeric_limits<uint64_t>::max(),

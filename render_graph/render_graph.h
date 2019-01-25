@@ -56,7 +56,7 @@ class RenderGraph {
 
   void CreateSyncObjects();
   void DestroySyncObjects();
-  void AquireBackbuffer();
+  void AcquireBackbuffer();
   void DestroySwapChain();
 
   // Passes.
