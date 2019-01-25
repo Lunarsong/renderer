@@ -346,6 +346,27 @@ enum ImageUsageFlagBits {
 };
 using ImageUsageFlags = uint32_t;
 
+namespace ImageCreateFlagBits {
+enum ImageCreateFlagBits {
+  kSparseBindingBit = 0x00000001,
+  kSparseResidencyBit = 0x00000002,
+  kSParseAliasedBit = 0x00000004,
+  kMutableFormatBit = 0x00000008,
+  kCubeCompatibleBit = 0x00000010,
+  kAliasBit = 0x00000400,
+  kSplitInstanceBindRegionsBit = 0x00000040,
+  k2DArrayCompatibleBit = 0x00000020,
+  kBlockTexelViewCompatibleBit = 0x00000080,
+  kExtendedUsageBit = 0x00000100,
+  kProtectedBit = 0x00000800,
+  kDisjointBit = 0x00000200,
+  kCornerSampledBitNV = 0x00002000,
+  kSampleLocationsCompatibleDepthBitEXT = 0x00001000,
+  kSubsampledBitEXT = 0x00004000,
+};
+}  // namespace ImageCreateFlagBits
+using ImageCreateFlags = uint32_t;
+
 struct ImageCreateInfo {
   TextureType type;
   TextureFormat format;
@@ -353,6 +374,8 @@ struct ImageCreateInfo {
   ImageUsageFlags usage =
       ImageUsageFlagBits::kTransferDstBit | ImageUsageFlagBits::kSampledBit;
   uint32_t mips = 1;
+  uint32_t array_layers = 1;
+  ImageCreateFlags flags = 0;
 
   ImageCreateInfo(TextureType type, TextureFormat format, Extent3D extent,
                   ImageUsageFlags usage = ImageUsageFlagBits::kTransferDstBit |

@@ -1075,14 +1075,14 @@ Image CreateImage(Device device, const ImageCreateInfo& info) {
   imageInfo.extent.height = info.extent.height;
   imageInfo.extent.depth = info.extent.depth;
   imageInfo.mipLevels = info.mips;
-  imageInfo.arrayLayers = 1;
+  imageInfo.arrayLayers = info.array_layers;
   imageInfo.format = static_cast<VkFormat>(info.format);
   imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
   imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   imageInfo.usage = info.usage;
   imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-  imageInfo.flags = 0;
+  imageInfo.flags = info.flags;
 
   VmaAllocationCreateInfo imageAllocCreateInfo = {};
   imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
