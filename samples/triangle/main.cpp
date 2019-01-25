@@ -8,10 +8,10 @@
 #include <renderer/renderer.h>
 #include "samples/common/util.h"
 
-void CreateVkSurfance(Renderer::Instance instance, GLFWwindow* window);
-Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
-                                          Renderer::RenderPass pass,
-                                          Renderer::PipelineLayout layout);
+void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window);
+RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
+                                           RenderAPI::RenderPass pass,
+                                           RenderAPI::PipelineLayout layout);
 GLFWwindow* InitWindow();
 void Shutdown(GLFWwindow* window);
 
@@ -25,160 +25,162 @@ void Run() {
   uint32_t glfwExtensionCount = 0;
   const char** glfwExtensions;
   glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-  Renderer::Instance instance =
-      Renderer::Create(glfwExtensions, glfwExtensionCount);
+  RenderAPI::Instance instance =
+      RenderAPI::Create(glfwExtensions, glfwExtensionCount);
 
   // Hack. Figure out how to hide this. Create a surface.
   CreateVkSurfance(instance, window);
 
   // Create a device and swapchain.
-  Renderer::Device device = Renderer::CreateDevice(instance);
-  Renderer::SwapChain swapchain = Renderer::CreateSwapChain(device, 1980, 1200);
+  RenderAPI::Device device = RenderAPI::CreateDevice(instance);
+  RenderAPI::SwapChain swapchain =
+      RenderAPI::CreateSwapChain(device, 1980, 1200);
 
   // Create the render pass and frame buffers.
-  Renderer::RenderPassCreateInfo pass_info;
+  RenderAPI::RenderPassCreateInfo pass_info;
   pass_info.attachments.resize(1);
   pass_info.attachments[0].format =
-      Renderer::GetSwapChainImageFormat(swapchain);
-  pass_info.attachments[0].load_op = Renderer::AttachmentLoadOp::kClear;
-  pass_info.attachments[0].store_op = Renderer::AttachmentStoreOp::kStore;
-  pass_info.attachments[0].final_layout = Renderer::ImageLayout::kPresentSrcKHR;
-  Renderer::RenderPass pass = Renderer::CreateRenderPass(device, pass_info);
-  const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain);
-  std::vector<Renderer::Framebuffer> framebuffers(swapchain_length);
+      RenderAPI::GetSwapChainImageFormat(swapchain);
+  pass_info.attachments[0].load_op = RenderAPI::AttachmentLoadOp::kClear;
+  pass_info.attachments[0].store_op = RenderAPI::AttachmentStoreOp::kStore;
+  pass_info.attachments[0].final_layout =
+      RenderAPI::ImageLayout::kPresentSrcKHR;
+  RenderAPI::RenderPass pass = RenderAPI::CreateRenderPass(device, pass_info);
+  const uint32_t swapchain_length = RenderAPI::GetSwapChainLength(swapchain);
+  std::vector<RenderAPI::Framebuffer> framebuffers(swapchain_length);
   for (uint32_t i = 0; i < swapchain_length; ++i) {
-    Renderer::FramebufferCreateInfo info;
+    RenderAPI::FramebufferCreateInfo info;
     info.pass = pass;
     info.width = 1980;
     info.height = 1200;
-    info.attachments.push_back(Renderer::GetSwapChainImageView(swapchain, i));
-    framebuffers[i] = Renderer::CreateFramebuffer(device, info);
+    info.attachments.push_back(RenderAPI::GetSwapChainImageView(swapchain, i));
+    framebuffers[i] = RenderAPI::CreateFramebuffer(device, info);
   }
 
-  Renderer::DescriptorSetLayoutCreateInfo descriptor_layout_info = {
-      {{Renderer::DescriptorType::kUniformBuffer, 1,
-        Renderer::ShaderStageFlagBits::kVertexBit},
-       {Renderer::DescriptorType::kUniformBuffer, 1,
-        Renderer::ShaderStageFlagBits::kFragmentBit}}};
-  Renderer::DescriptorSetLayout descriptor_layout =
-      Renderer::CreateDescriptorSetLayout(device, descriptor_layout_info);
+  RenderAPI::DescriptorSetLayoutCreateInfo descriptor_layout_info = {
+      {{RenderAPI::DescriptorType::kUniformBuffer, 1,
+        RenderAPI::ShaderStageFlagBits::kVertexBit},
+       {RenderAPI::DescriptorType::kUniformBuffer, 1,
+        RenderAPI::ShaderStageFlagBits::kFragmentBit}}};
+  RenderAPI::DescriptorSetLayout descriptor_layout =
+      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info);
 
   // Create a pipeline.
-  Renderer::PipelineLayout pipeline_layout =
-      Renderer::CreatePipelineLayout(device, {{descriptor_layout}});
-  Renderer::GraphicsPipeline pipeline =
+  RenderAPI::PipelineLayout pipeline_layout =
+      RenderAPI::CreatePipelineLayout(device, {{descriptor_layout}});
+  RenderAPI::GraphicsPipeline pipeline =
       CreatePipeline(device, pass, pipeline_layout);
 
-  Renderer::CreateDescriptorSetPoolCreateInfo pool_info = {
-      {{Renderer::DescriptorType::kUniformBuffer,
+  RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info = {
+      {{RenderAPI::DescriptorType::kUniformBuffer,
         static_cast<uint32_t>(framebuffers.size()) * 2},
-       {Renderer::DescriptorType::kCombinedImageSampler,
+       {RenderAPI::DescriptorType::kCombinedImageSampler,
         static_cast<uint32_t>(framebuffers.size())}},
       /*max_sets=*/static_cast<uint32_t>(framebuffers.size())};
-  Renderer::DescriptorSetPool set_pool =
-      Renderer::CreateDescriptorSetPool(device, pool_info);
+  RenderAPI::DescriptorSetPool set_pool =
+      RenderAPI::CreateDescriptorSetPool(device, pool_info);
 
-  std::vector<Renderer::DescriptorSet> descriptor_sets(framebuffers.size());
-  Renderer::AllocateDescriptorSets(set_pool,
-                                   std::vector<Renderer::DescriptorSetLayout>(
-                                       framebuffers.size(), descriptor_layout),
-                                   descriptor_sets.data());
+  std::vector<RenderAPI::DescriptorSet> descriptor_sets(framebuffers.size());
+  RenderAPI::AllocateDescriptorSets(set_pool,
+                                    std::vector<RenderAPI::DescriptorSetLayout>(
+                                        framebuffers.size(), descriptor_layout),
+                                    descriptor_sets.data());
 
   // Create a command pool.
-  Renderer::CommandPool command_pool = Renderer::CreateCommandPool(device);
+  RenderAPI::CommandPool command_pool = RenderAPI::CreateCommandPool(device);
 
   // Create the vertex and index buffers. Copy the data using a staging buffer.
   std::vector<float> triangle = {0.0,  -0.5, 1.0, 0.0, 0.0,  //
                                  0.5,  0.5,  0.0, 0.0, 1.0,  //
                                  -0.5, 0.5,  0.0, 1.0, 0.0};
-  Renderer::Buffer vertex_buffer = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kVertex, sizeof(float) * triangle.size(),
-      Renderer::MemoryUsage::kGpu);
-  Renderer::StageCopyDataToBuffer(command_pool, vertex_buffer, triangle.data(),
-                                  sizeof(float) * triangle.size());
+  RenderAPI::Buffer vertex_buffer = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferType::kVertex, sizeof(float) * triangle.size(),
+      RenderAPI::MemoryUsage::kGpu);
+  RenderAPI::StageCopyDataToBuffer(command_pool, vertex_buffer, triangle.data(),
+                                   sizeof(float) * triangle.size());
 
   // Create the index buffer in GPU memory and copy the data.
   const uint32_t indices[] = {0, 1, 2};
-  Renderer::Buffer index_buffer =
-      Renderer::CreateBuffer(device, Renderer::BufferType::kIndex,
-                             sizeof(uint32_t) * 3, Renderer::MemoryUsage::kGpu);
-  Renderer::StageCopyDataToBuffer(command_pool, index_buffer, indices,
-                                  sizeof(uint32_t) * 3);
+  RenderAPI::Buffer index_buffer = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferType::kIndex, sizeof(uint32_t) * 3,
+      RenderAPI::MemoryUsage::kGpu);
+  RenderAPI::StageCopyDataToBuffer(command_pool, index_buffer, indices,
+                                   sizeof(uint32_t) * 3);
 
   float offsets[] = {0.5f, 0.0f, 0.0f, 0.0f};
-  Renderer::Buffer uniform_buffer_offset = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kUniform, sizeof(float) * 4);
-  memcpy(Renderer::MapBuffer(uniform_buffer_offset), offsets,
+  RenderAPI::Buffer uniform_buffer_offset = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferType::kUniform, sizeof(float) * 4);
+  memcpy(RenderAPI::MapBuffer(uniform_buffer_offset), offsets,
          sizeof(float) * 4);
-  Renderer::UnmapBuffer(uniform_buffer_offset);
+  RenderAPI::UnmapBuffer(uniform_buffer_offset);
 
   float color[] = {1.0f, 1.0f, 1.0f, 1.0f};
-  Renderer::Buffer uniform_buffer_color = Renderer::CreateBuffer(
-      device, Renderer::BufferType::kUniform, sizeof(float) * 4);
-  memcpy(Renderer::MapBuffer(uniform_buffer_color), color, sizeof(float) * 4);
-  Renderer::UnmapBuffer(uniform_buffer_color);
+  RenderAPI::Buffer uniform_buffer_color = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferType::kUniform, sizeof(float) * 4);
+  memcpy(RenderAPI::MapBuffer(uniform_buffer_color), color, sizeof(float) * 4);
+  RenderAPI::UnmapBuffer(uniform_buffer_color);
 
   for (auto it : descriptor_sets) {
-    Renderer::WriteDescriptorSet write[2];
-    Renderer::DescriptorBufferInfo offset_buffer;
+    RenderAPI::WriteDescriptorSet write[2];
+    RenderAPI::DescriptorBufferInfo offset_buffer;
     offset_buffer.buffer = uniform_buffer_offset;
     offset_buffer.range = sizeof(float) * 4;
     write[0].set = it;
     write[0].binding = 0;
     write[0].buffers = &offset_buffer;
     write[0].descriptor_count = 1;
-    write[0].type = Renderer::DescriptorType::kUniformBuffer;
+    write[0].type = RenderAPI::DescriptorType::kUniformBuffer;
 
-    Renderer::DescriptorBufferInfo color_buffer;
+    RenderAPI::DescriptorBufferInfo color_buffer;
     color_buffer.buffer = uniform_buffer_color;
     color_buffer.range = sizeof(float) * 4;
     write[1].set = it;
     write[1].binding = 1;
     write[1].buffers = &color_buffer;
     write[1].descriptor_count = 1;
-    write[1].type = Renderer::DescriptorType::kUniformBuffer;
+    write[1].type = RenderAPI::DescriptorType::kUniformBuffer;
 
-    Renderer::UpdateDescriptorSets(device, 2, write);
+    RenderAPI::UpdateDescriptorSets(device, 2, write);
   }
 
   // Command buffers for every image in the swapchain.
-  std::vector<Renderer::CommandBuffer> cmd_buffers(swapchain_length);
+  std::vector<RenderAPI::CommandBuffer> cmd_buffers(swapchain_length);
   int i = 0;
   for (auto& it : cmd_buffers) {
-    it = Renderer::CreateCommandBuffer(command_pool);
-    Renderer::CmdBegin(it);
-    Renderer::ClearValue clear_value;
-    Renderer::CmdBeginRenderPass(
+    it = RenderAPI::CreateCommandBuffer(command_pool);
+    RenderAPI::CmdBegin(it);
+    RenderAPI::ClearValue clear_value;
+    RenderAPI::CmdBeginRenderPass(
         it,
-        Renderer::BeginRenderPassInfo(pass, framebuffers[i], 1, &clear_value));
-    Renderer::CmdBindPipeline(it, pipeline);
-    Renderer::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
-    Renderer::CmdBindIndexBuffer(it, index_buffer,
-                                 Renderer::IndexType::kUInt32);
-    Renderer::CmdBindDescriptorSets(it, 0, pipeline_layout, 0, 1,
-                                    &descriptor_sets[i]);
-    Renderer::CmdDrawIndexed(it, 3);
-    Renderer::CmdEndRenderPass(it);
-    Renderer::CmdEnd(it);
+        RenderAPI::BeginRenderPassInfo(pass, framebuffers[i], 1, &clear_value));
+    RenderAPI::CmdBindPipeline(it, pipeline);
+    RenderAPI::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
+    RenderAPI::CmdBindIndexBuffer(it, index_buffer,
+                                  RenderAPI::IndexType::kUInt32);
+    RenderAPI::CmdBindDescriptorSets(it, 0, pipeline_layout, 0, 1,
+                                     &descriptor_sets[i]);
+    RenderAPI::CmdDrawIndexed(it, 3);
+    RenderAPI::CmdEndRenderPass(it);
+    RenderAPI::CmdEnd(it);
     ++i;
   }
 
   // Allow drawing 2 frames at once, synchronized by their own semaphores and
   // fences.
   static constexpr size_t kMaxFramesInFlight = 2;
-  std::vector<Renderer::Semaphore> image_available_semaphores(
+  std::vector<RenderAPI::Semaphore> image_available_semaphores(
       kMaxFramesInFlight);
   for (auto& it : image_available_semaphores) {
-    it = Renderer::CreateSemaphore(device);
+    it = RenderAPI::CreateSemaphore(device);
   }
-  std::vector<Renderer::Semaphore> render_finished_semaphores(
+  std::vector<RenderAPI::Semaphore> render_finished_semaphores(
       kMaxFramesInFlight);
   for (auto& it : render_finished_semaphores) {
-    it = Renderer::CreateSemaphore(device);
+    it = RenderAPI::CreateSemaphore(device);
   }
-  std::vector<Renderer::Fence> in_flight_fences(kMaxFramesInFlight);
+  std::vector<RenderAPI::Fence> in_flight_fences(kMaxFramesInFlight);
   for (auto& it : in_flight_fences) {
-    it = Renderer::CreateFence(device, true);
+    it = RenderAPI::CreateFence(device, true);
   }
 
   // Main loop.
@@ -196,62 +198,63 @@ void Run() {
     double delta_seconds = elapsed_time.count();
 
     // If the CPU is ahead, wait on fences.
-    Renderer::WaitForFences(&in_flight_fences[current_frame], 1, true,
-                            std::numeric_limits<uint64_t>::max());
-    Renderer::ResetFences(&in_flight_fences[current_frame], 1);
+    RenderAPI::WaitForFences(&in_flight_fences[current_frame], 1, true,
+                             std::numeric_limits<uint64_t>::max());
+    RenderAPI::ResetFences(&in_flight_fences[current_frame], 1);
 
     // Prepare the next swapchain frame buffer for rendering.
     uint32_t imageIndex;
-    Renderer::AcquireNextImage(swapchain, std::numeric_limits<uint64_t>::max(),
-                               image_available_semaphores[current_frame],
-                               &imageIndex);
+    RenderAPI::AcquireNextImage(swapchain, std::numeric_limits<uint64_t>::max(),
+                                image_available_semaphores[current_frame],
+                                &imageIndex);
 
     // Set the semaphores and command buffer for the current frame buffer.
-    Renderer::SubmitInfo submit_info;
+    RenderAPI::SubmitInfo submit_info;
     submit_info.wait_semaphores = &image_available_semaphores[current_frame];
     submit_info.wait_semaphores_count = 1;
     submit_info.command_buffers = &cmd_buffers[imageIndex];
     submit_info.command_buffers_count = 1;
     submit_info.signal_semaphores = &render_finished_semaphores[current_frame];
     submit_info.signal_semaphores_count = 1;
-    Renderer::QueueSubmit(device, submit_info, in_flight_fences[current_frame]);
+    RenderAPI::QueueSubmit(device, submit_info,
+                           in_flight_fences[current_frame]);
 
     // Present.
-    Renderer::PresentInfo present_info;
+    RenderAPI::PresentInfo present_info;
     present_info.wait_semaphores = &render_finished_semaphores[current_frame];
     present_info.wait_semaphores_count = 1;
-    Renderer::QueuePresent(swapchain, imageIndex, present_info);
+    RenderAPI::QueuePresent(swapchain, imageIndex, present_info);
     current_frame = (current_frame + 1) % kMaxFramesInFlight;
   }
 
   // Shutdown: Destroy everything.
-  Renderer::DeviceWaitIdle(device);
-  Renderer::DestroyCommandPool(command_pool);
+  RenderAPI::DeviceWaitIdle(device);
+  RenderAPI::DestroyCommandPool(command_pool);
   for (auto it : framebuffers) {
-    Renderer::DestroyFramebuffer(it);
+    RenderAPI::DestroyFramebuffer(it);
   }
 
   for (auto& it : in_flight_fences) {
-    Renderer::DestroyFence(it);
+    RenderAPI::DestroyFence(it);
   }
   for (auto it : image_available_semaphores) {
-    Renderer::DestroySemaphore(it);
+    RenderAPI::DestroySemaphore(it);
   }
   for (auto it : render_finished_semaphores) {
-    Renderer::DestroySemaphore(it);
+    RenderAPI::DestroySemaphore(it);
   }
-  Renderer::DestroyDescriptorSetPool(set_pool);
-  Renderer::DestroyBuffer(uniform_buffer_color);
-  Renderer::DestroyBuffer(uniform_buffer_offset);
-  Renderer::DestroyBuffer(index_buffer);
-  Renderer::DestroyBuffer(vertex_buffer);
-  Renderer::DestroyGraphicsPipeline(pipeline);
-  Renderer::DestroyPipelineLayout(device, pipeline_layout);
-  Renderer::DestroyDescriptorSetLayout(descriptor_layout);
-  Renderer::DestroyRenderPass(pass);
-  Renderer::DestroySwapChain(swapchain);
-  Renderer::DestroyDevice(device);
-  Renderer::Destroy(instance);
+  RenderAPI::DestroyDescriptorSetPool(set_pool);
+  RenderAPI::DestroyBuffer(uniform_buffer_color);
+  RenderAPI::DestroyBuffer(uniform_buffer_offset);
+  RenderAPI::DestroyBuffer(index_buffer);
+  RenderAPI::DestroyBuffer(vertex_buffer);
+  RenderAPI::DestroyGraphicsPipeline(pipeline);
+  RenderAPI::DestroyPipelineLayout(device, pipeline_layout);
+  RenderAPI::DestroyDescriptorSetLayout(descriptor_layout);
+  RenderAPI::DestroyRenderPass(pass);
+  RenderAPI::DestroySwapChain(swapchain);
+  RenderAPI::DestroyDevice(device);
+  RenderAPI::Destroy(instance);
   Shutdown(window);
 }
 
@@ -266,26 +269,26 @@ int main() {
 }
 
 // Support functions.
-namespace Renderer {
+namespace RenderAPI {
 extern VkInstance GetVkInstance(Instance instance);
 void SetSurface(Instance instance, VkSurfaceKHR surface);
-}  // namespace Renderer
+}  // namespace RenderAPI
 
-void CreateVkSurfance(Renderer::Instance instance, GLFWwindow* window) {
+void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window) {
   VkSurfaceKHR surface;
-  if (glfwCreateWindowSurface(Renderer::GetVkInstance(instance), window,
+  if (glfwCreateWindowSurface(RenderAPI::GetVkInstance(instance), window,
                               nullptr, &surface) != VK_SUCCESS) {
     throw std::runtime_error("failed to create window surface!");
   }
-  Renderer::SetSurface(instance, surface);
+  RenderAPI::SetSurface(instance, surface);
 }
 
-Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
-                                          Renderer::RenderPass pass,
-                                          Renderer::PipelineLayout layout) {
-  Renderer::GraphicsPipeline pipeline = Renderer::kInvalidHandle;
+RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
+                                           RenderAPI::RenderPass pass,
+                                           RenderAPI::PipelineLayout layout) {
+  RenderAPI::GraphicsPipeline pipeline = RenderAPI::kInvalidHandle;
 
-  Renderer::GraphicsPipelineCreateInfo info;
+  RenderAPI::GraphicsPipelineCreateInfo info;
   auto vert = util::ReadFile("samples/triangle/data/triangle.vert.spv");
   auto frag = util::ReadFile("samples/triangle/data/triangle.frag.spv");
   info.vertex.code = reinterpret_cast<const uint32_t*>(vert.data());
@@ -294,16 +297,16 @@ Renderer::GraphicsPipeline CreatePipeline(Renderer::Device device,
   info.fragment.code_size = frag.size();
   info.vertex_input.resize(1);
   info.vertex_input[0].layout.push_back(
-      {Renderer::VertexAttributeType::kVec2, 0});
+      {RenderAPI::VertexAttributeType::kVec2, 0});
   info.vertex_input[0].layout.push_back(
-      {Renderer::VertexAttributeType::kVec3, sizeof(float) * 2});
+      {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 2});
   info.layout = layout;
 
   info.states.viewport.viewports.emplace_back(
-      Renderer::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
+      RenderAPI::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
   info.states.blend.attachments.resize(1);
-  info.states.rasterization.front_face = Renderer::FrontFace::kClockwise;
-  pipeline = Renderer::CreateGraphicsPipeline(device, pass, info);
+  info.states.rasterization.front_face = RenderAPI::FrontFace::kClockwise;
+  pipeline = RenderAPI::CreateGraphicsPipeline(device, pass, info);
 
   return pipeline;
 }

@@ -5,10 +5,10 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
-#include "vk_mem_alloc.h"
 #include "../renderer_vulkan.h"
+#include "vk_mem_alloc.h"
 
-namespace Renderer {
+namespace RenderAPI {
 extern bool enable_validation_layers;
 
 struct SwapChainSupportDetails {
@@ -62,4 +62,4 @@ VmaMemoryUsage MemoryUsageToVulkanMemoryAllocator(MemoryUsage usage);
 
 void DebugAsserts();
 
-}  // namespace Renderer
+}  // namespace RenderAPI

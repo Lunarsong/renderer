@@ -6,7 +6,7 @@
 #include "renderer_pipelines.h"
 #include "renderer_texture.h"
 
-namespace Renderer {
+namespace RenderAPI {
 using HandleType = uint64_t;
 static constexpr HandleType kInvalidHandle = ((HandleType)-1);
 
@@ -373,4 +373,4 @@ void DestroyImageView(Device device, ImageView view);
 Sampler CreateSampler(Device device);
 void DestroySampler(Device device, Sampler sampler);
 
-}  // namespace Renderer
+}  // namespace RenderAPI

@@ -6,7 +6,7 @@
 #include <vector>
 #include "vk_mem_alloc.h"
 
-namespace Renderer {
+namespace RenderAPI {
 
 struct QueueFamilyIndices {
   int graphics = -1;
@@ -98,4 +98,4 @@ struct ImageVk {
   VmaAllocation allocation;
 };
 
-}  // namespace Renderer
+}  // namespace RenderAPI

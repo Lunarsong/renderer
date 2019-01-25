@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace Renderer {
+namespace RenderAPI {
 bool enable_validation_layers = true;
 
 SwapChainSupportDetails QuerySwapChainSupport(VkSurfaceKHR surface,
@@ -420,7 +420,7 @@ VmaMemoryUsage MemoryUsageToVulkanMemoryAllocator(MemoryUsage usage) {
 }
 
 void DebugAsserts() {
-  assert(sizeof(VkClearValue) == sizeof(Renderer::ClearValue));
+  assert(sizeof(VkClearValue) == sizeof(RenderAPI::ClearValue));
   assert(sizeof(VkDescriptorSet) == sizeof(DescriptorSet));
   assert(sizeof(ImageView) == sizeof(VkImageView));
   assert(sizeof(Sampler) == sizeof(VkSampler));
@@ -428,4 +428,4 @@ void DebugAsserts() {
   assert(sizeof(VkStencilOpState) == sizeof(StencilOpState));
 }
 
-}  // namespace Renderer
+}  // namespace RenderAPI

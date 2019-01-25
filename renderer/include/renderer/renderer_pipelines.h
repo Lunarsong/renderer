@@ -2,7 +2,7 @@
 
 #include <vector>
 
-namespace Renderer {
+namespace RenderAPI {
 using Bool32 = uint32_t;
 
 enum class PrimitiveTopology {
@@ -360,4 +360,4 @@ struct PushConstantRange {
       : flags(flags), offset(offset), size(size) {}
 };
 
-}  // namespace Renderer
+}  // namespace RenderAPI

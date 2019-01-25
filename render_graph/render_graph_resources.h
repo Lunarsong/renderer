@@ -11,20 +11,21 @@ struct RenderGraphResourceTextures {
 };
 
 struct RenderGraphFramebuffer {
-  Renderer::RenderPass pass;
-  Renderer::Framebuffer framebuffer;
+  RenderAPI::RenderPass pass;
+  RenderAPI::Framebuffer framebuffer;
 
-  std::vector<Renderer::ClearValue> clear_values;
+  std::vector<RenderAPI::ClearValue> clear_values;
 };
 
 struct RenderGraphTextureDesc {
   uint32_t width;
   uint32_t height;
 
-  Renderer::TextureFormat format;
-  Renderer::ImageLayout layout = Renderer::ImageLayout::kShaderReadOnlyOptimal;
-  Renderer::AttachmentLoadOp load_op = Renderer::AttachmentLoadOp::kDontCare;
-  Renderer::ClearValue clear_values;
+  RenderAPI::TextureFormat format;
+  RenderAPI::ImageLayout layout =
+      RenderAPI::ImageLayout::kShaderReadOnlyOptimal;
+  RenderAPI::AttachmentLoadOp load_op = RenderAPI::AttachmentLoadOp::kDontCare;
+  RenderAPI::ClearValue clear_values;
 };
 
 struct RenderGraphFramebufferDesc {

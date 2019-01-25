@@ -106,7 +106,7 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
     }
 
     if (framebuffer.transient) {
-      std::vector<Renderer::ImageView> images;
+      std::vector<RenderAPI::ImageView> images;
       images.reserve(framebuffer.textures.textures.size());
       for (const auto& texture_handle : framebuffer.textures.textures) {
         images.emplace_back(textures_[texture_handle].texture);
@@ -191,7 +191,7 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
         if (writer == reader) {
           continue;
         }
-        Renderer::Semaphore semaphore = cache_->AllocateSemaphore();
+        RenderAPI::Semaphore semaphore = cache_->AllocateSemaphore();
         passes[writer].signal_semaphores.emplace_back(semaphore);
         passes[reader].wait_semaphores.emplace_back(semaphore);
       }
@@ -200,7 +200,7 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
   // Create dumb semaphores for now (later optimize
   // semaphores to be created for dependencies).
   for (size_t i = 1; i < nodes.size(); ++i) {
-    Renderer::Semaphore semaphore = cache_->AllocateSemaphore();
+    RenderAPI::Semaphore semaphore = cache_->AllocateSemaphore();
     nodes[i - 1].signal_semaphores.emplace_back(semaphore);
     nodes[i].wait_semaphores.emplace_back(semaphore);
   }

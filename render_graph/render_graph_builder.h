@@ -55,7 +55,7 @@ class RenderGraphBuilder {
 
   struct RenderGraphTextureResource {
     RenderGraphTextureDesc desc;
-    Renderer::ImageView texture;
+    RenderAPI::ImageView texture;
 
     bool transient = true;
     uint8_t ref_count = 0;

@@ -11,7 +11,7 @@
 struct RenderGraphPass;
 class RenderGraph {
  public:
-  RenderGraph(Renderer::Device device);
+  RenderGraph(RenderAPI::Device device);
   ~RenderGraph();
 
   void BuildSwapChain(uint32_t width, uint32_t height);
@@ -25,18 +25,18 @@ class RenderGraph {
 
   // Resources.
   RenderGraphResource ImportTexture(RenderGraphTextureDesc desc,
-                                    Renderer::ImageView texture);
+                                    RenderAPI::ImageView texture);
   void MoveSubresource(RenderGraphResource from, RenderGraphResource to);
 
   // Swapchain
-  Renderer::SwapChain GetSwapChain() const;
+  RenderAPI::SwapChain GetSwapChain() const;
   RenderGraphResource GetBackbufferResource() const;
   const RenderGraphTextureDesc& GetSwapChainDescription() const;
 
  private:
-  Renderer::Device device_;
-  Renderer::SwapChain swapchain_ = Renderer::kInvalidHandle;
-  Renderer::CommandPool command_pool_ = Renderer::kInvalidHandle;
+  RenderAPI::Device device_;
+  RenderAPI::SwapChain swapchain_ = RenderAPI::kInvalidHandle;
+  RenderAPI::CommandPool command_pool_ = RenderAPI::kInvalidHandle;
 
   RenderGraphBuilder builder_;
   RenderGraphCache cache_;
@@ -47,10 +47,10 @@ class RenderGraph {
 
   // Swapchain information (should probably be moved elsewhere).
   uint32_t current_backbuffer_image_;
-  Renderer::RenderPass backbuffer_render_pass_ = Renderer::kInvalidHandle;
-  std::vector<Renderer::Semaphore> present_semaphores_;
-  std::vector<Renderer::Semaphore> backbuffer_complete_semaphores_;
-  std::vector<Renderer::Fence> backbuffer_fences_;
+  RenderAPI::RenderPass backbuffer_render_pass_ = RenderAPI::kInvalidHandle;
+  std::vector<RenderAPI::Semaphore> present_semaphores_;
+  std::vector<RenderAPI::Semaphore> backbuffer_complete_semaphores_;
+  std::vector<RenderAPI::Fence> backbuffer_fences_;
   RenderGraphResource backbuffer_resource_;
   RenderGraphTextureDesc swapchain_desc_;
 
@@ -62,6 +62,6 @@ class RenderGraph {
   // Passes.
   std::vector<RenderGraphPass> passes_;
   std::vector<RenderGraphNode> Compile();
-  Renderer::Semaphore ExecuteRenderPasses(std::vector<RenderGraphNode>& nodes,
-                                          Renderer::Semaphore semaphore);
+  RenderAPI::Semaphore ExecuteRenderPasses(std::vector<RenderGraphNode>& nodes,
+                                           RenderAPI::Semaphore semaphore);
 };

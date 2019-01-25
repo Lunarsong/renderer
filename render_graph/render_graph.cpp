@@ -3,62 +3,62 @@
 #include <cassert>
 #include <iostream>
 
-RenderGraph::RenderGraph(Renderer::Device device)
+RenderGraph::RenderGraph(RenderAPI::Device device)
     : device_(device), builder_(&cache_) {
-  command_pool_ = Renderer::CreateCommandPool(
-      device_, Renderer::CommandPoolCreateFlags::kResetCommand);
+  command_pool_ = RenderAPI::CreateCommandPool(
+      device_, RenderAPI::CommandPoolCreateFlags::kResetCommand);
   cache_.SetRenderObjects(device_, command_pool_);
 }
 
 RenderGraph::~RenderGraph() { Destroy(); }
 
 void RenderGraph::Destroy() {
-  if (device_ == Renderer::kInvalidHandle) {
+  if (device_ == RenderAPI::kInvalidHandle) {
     return;
   }
-  Renderer::DeviceWaitIdle(device_);
+  RenderAPI::DeviceWaitIdle(device_);
 
   cache_.Destroy();
 
-  if (swapchain_ != Renderer::kInvalidHandle) {
-    Renderer::DestroySwapChain(swapchain_);
-    swapchain_ = Renderer::kInvalidHandle;
+  if (swapchain_ != RenderAPI::kInvalidHandle) {
+    RenderAPI::DestroySwapChain(swapchain_);
+    swapchain_ = RenderAPI::kInvalidHandle;
   }
-  if (command_pool_ != Renderer::kInvalidHandle) {
-    Renderer::DestroyCommandPool(command_pool_);
-    command_pool_ = Renderer::kInvalidHandle;
+  if (command_pool_ != RenderAPI::kInvalidHandle) {
+    RenderAPI::DestroyCommandPool(command_pool_);
+    command_pool_ = RenderAPI::kInvalidHandle;
   }
   DestroySwapChain();
-  device_ = Renderer::kInvalidHandle;
+  device_ = RenderAPI::kInvalidHandle;
 }
 
 void RenderGraph::DestroySwapChain() {
-  Renderer::DeviceWaitIdle(device_);
+  RenderAPI::DeviceWaitIdle(device_);
   DestroySyncObjects();
 
-  if (backbuffer_render_pass_ != Renderer::kInvalidHandle) {
-    Renderer::DestroyRenderPass(backbuffer_render_pass_);
-    backbuffer_render_pass_ = Renderer::kInvalidHandle;
+  if (backbuffer_render_pass_ != RenderAPI::kInvalidHandle) {
+    RenderAPI::DestroyRenderPass(backbuffer_render_pass_);
+    backbuffer_render_pass_ = RenderAPI::kInvalidHandle;
   }
 
-  if (swapchain_ != Renderer::kInvalidHandle) {
-    Renderer::DestroySwapChain(swapchain_);
-    swapchain_ = Renderer::kInvalidHandle;
+  if (swapchain_ != RenderAPI::kInvalidHandle) {
+    RenderAPI::DestroySwapChain(swapchain_);
+    swapchain_ = RenderAPI::kInvalidHandle;
   }
 }
 
 void RenderGraph::BuildSwapChain(uint32_t width, uint32_t height) {
   DestroySwapChain();
 
-  swapchain_ = Renderer::CreateSwapChain(device_, width, height);
-  const uint32_t swapchain_length = Renderer::GetSwapChainLength(swapchain_);
+  swapchain_ = RenderAPI::CreateSwapChain(device_, width, height);
+  const uint32_t swapchain_length = RenderAPI::GetSwapChainLength(swapchain_);
   max_frames_in_flight = 1;  // swapchain_length;
 
   swapchain_desc_.width = width;
   swapchain_desc_.height = height;
-  swapchain_desc_.format = Renderer::GetSwapChainImageFormat(swapchain_);
-  swapchain_desc_.load_op = Renderer::AttachmentLoadOp::kClear;
-  swapchain_desc_.layout = Renderer::ImageLayout::kPresentSrcKHR;
+  swapchain_desc_.format = RenderAPI::GetSwapChainImageFormat(swapchain_);
+  swapchain_desc_.load_op = RenderAPI::AttachmentLoadOp::kClear;
+  swapchain_desc_.layout = RenderAPI::ImageLayout::kPresentSrcKHR;
 
   CreateSyncObjects();
 }
@@ -85,24 +85,24 @@ void RenderGraph::Render() {
   std::vector<RenderGraphNode> nodes = Compile();
 
   // (This should be removed) If the CPU is ahead, wait on fences.
-  Renderer::WaitForFences(&backbuffer_fences_[current_frame_], 1, true,
-                          std::numeric_limits<uint64_t>::max());
-  Renderer::ResetFences(&backbuffer_fences_[current_frame_], 1);
+  RenderAPI::WaitForFences(&backbuffer_fences_[current_frame_], 1, true,
+                           std::numeric_limits<uint64_t>::max());
+  RenderAPI::ResetFences(&backbuffer_fences_[current_frame_], 1);
 
   // Submit work from the renderer passes.
-  Renderer::Semaphore render_complete_semaphore =
+  RenderAPI::Semaphore render_complete_semaphore =
       ExecuteRenderPasses(nodes, present_semaphores_[current_frame_]);
 
   // Present.
-  Renderer::PresentInfo present_info;
-  if (render_complete_semaphore != Renderer::kInvalidHandle) {
+  RenderAPI::PresentInfo present_info;
+  if (render_complete_semaphore != RenderAPI::kInvalidHandle) {
     present_info.wait_semaphores = &render_complete_semaphore;
     present_info.wait_semaphores_count = 1;
   } else {
     present_info.wait_semaphores_count = 0;
   }
 
-  Renderer::QueuePresent(swapchain_, current_backbuffer_image_, present_info);
+  RenderAPI::QueuePresent(swapchain_, current_backbuffer_image_, present_info);
 
   current_frame_ = (current_frame_ + 1) % max_frames_in_flight;
 }
@@ -121,28 +121,28 @@ void RenderGraph::AddPass(const std::string& name, RenderGraphSetupFn setup_fn,
   passes_.emplace_back(std::move(pass));
 }
 
-Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
-    std::vector<RenderGraphNode>& nodes, Renderer::Semaphore semaphore) {
-  Renderer::Semaphore signal_semaphore = Renderer::kInvalidHandle;
+RenderAPI::Semaphore RenderGraph::ExecuteRenderPasses(
+    std::vector<RenderGraphNode>& nodes, RenderAPI::Semaphore semaphore) {
+  RenderAPI::Semaphore signal_semaphore = RenderAPI::kInvalidHandle;
 
-  Renderer::SubmitInfo submit_info;
+  RenderAPI::SubmitInfo submit_info;
   RenderContext context;
   size_t count = 0;
   for (auto& node : nodes) {
-    if (node.render_cmd == Renderer::kInvalidHandle) {
+    if (node.render_cmd == RenderAPI::kInvalidHandle) {
       continue;
     }
 
     context.cmd = node.render_cmd;
-    Renderer::CmdBegin(context.cmd);
+    RenderAPI::CmdBegin(context.cmd);
 
     for (auto& render_pass : node.render_passes) {
-      if (render_pass.framebuffer.pass != Renderer::kInvalidHandle &&
-          render_pass.framebuffer.framebuffer != Renderer::kInvalidHandle) {
+      if (render_pass.framebuffer.pass != RenderAPI::kInvalidHandle &&
+          render_pass.framebuffer.framebuffer != RenderAPI::kInvalidHandle) {
         context.framebuffer = render_pass.framebuffer.framebuffer;
         context.pass = render_pass.framebuffer.pass;
-        Renderer::CmdBeginRenderPass(
-            context.cmd, Renderer::BeginRenderPassInfo(
+        RenderAPI::CmdBeginRenderPass(
+            context.cmd, RenderAPI::BeginRenderPassInfo(
                              context.pass, context.framebuffer,
                              static_cast<uint32_t>(
                                  render_pass.framebuffer.clear_values.size()),
@@ -150,20 +150,20 @@ Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
         for (auto& pass : render_pass.passes) {
           pass->fn(&context, pass->scope);
         }
-        Renderer::CmdEndRenderPass(context.cmd);
+        RenderAPI::CmdEndRenderPass(context.cmd);
       }
     }
-    Renderer::CmdEnd(context.cmd);
+    RenderAPI::CmdEnd(context.cmd);
 
     // If this is the first node, add the wait semaphore.
-    if (semaphore != Renderer::kInvalidHandle) {
+    if (semaphore != RenderAPI::kInvalidHandle) {
       node.wait_semaphores.emplace_back(semaphore);
-      semaphore = Renderer::kInvalidHandle;
+      semaphore = RenderAPI::kInvalidHandle;
     }
 
     // If this is the last pass, add a fence and semaphore.
     ++count;
-    Renderer::Fence fence = Renderer::kInvalidHandle;
+    RenderAPI::Fence fence = RenderAPI::kInvalidHandle;
     if (count == nodes.size()) {
       fence = backbuffer_fences_[current_frame_];
       signal_semaphore = cache_.AllocateSemaphore();
@@ -177,22 +177,23 @@ Renderer::Semaphore RenderGraph::ExecuteRenderPasses(
     submit_info.wait_semaphores_count = node.wait_semaphores.size();
     submit_info.command_buffers = &context.cmd;
     submit_info.command_buffers_count = 1;
-    Renderer::QueueSubmit(device_, submit_info, fence);
+    RenderAPI::QueueSubmit(device_, submit_info, fence);
   }
   return signal_semaphore;
 }
 
-Renderer::SwapChain RenderGraph::GetSwapChain() const { return swapchain_; }
+RenderAPI::SwapChain RenderGraph::GetSwapChain() const { return swapchain_; }
 
 void RenderGraph::AcquireBackbuffer() {
   // Prepare the next swapchain frame buffer for rendering.
   uint32_t image_index;
-  Renderer::AcquireNextImage(swapchain_, std::numeric_limits<uint64_t>::max(),
-                             present_semaphores_[current_frame_], &image_index);
+  RenderAPI::AcquireNextImage(swapchain_, std::numeric_limits<uint64_t>::max(),
+                              present_semaphores_[current_frame_],
+                              &image_index);
   current_backbuffer_image_ = image_index;
   backbuffer_resource_ =
       ImportTexture(swapchain_desc_,
-                    Renderer::GetSwapChainImageView(swapchain_, image_index));
+                    RenderAPI::GetSwapChainImageView(swapchain_, image_index));
 }
 
 RenderGraphResource RenderGraph::GetBackbufferResource() const {
@@ -204,26 +205,26 @@ void RenderGraph::CreateSyncObjects() {
   backbuffer_fences_.resize(max_frames_in_flight);
 
   for (auto& it : present_semaphores_) {
-    it = Renderer::CreateSemaphore(device_);
+    it = RenderAPI::CreateSemaphore(device_);
   }
   for (auto& it : backbuffer_fences_) {
-    it = Renderer::CreateFence(device_, true);
+    it = RenderAPI::CreateFence(device_, true);
   }
 }
 
 void RenderGraph::DestroySyncObjects() {
   for (auto it : present_semaphores_) {
-    Renderer::DestroySemaphore(it);
+    RenderAPI::DestroySemaphore(it);
   }
   for (auto it : backbuffer_fences_) {
-    Renderer::DestroyFence(it);
+    RenderAPI::DestroyFence(it);
   }
   present_semaphores_.clear();
   backbuffer_fences_.clear();
 }
 
 RenderGraphResource RenderGraph::ImportTexture(RenderGraphTextureDesc desc,
-                                               Renderer::ImageView texture) {
+                                               RenderAPI::ImageView texture) {
   RenderGraphBuilder::RenderGraphTextureResource resource;
   resource.transient = false;
   resource.desc = std::move(desc);
@@ -242,7 +243,7 @@ const RenderGraphTextureDesc& RenderGraph::GetSwapChainDescription() const {
   return swapchain_desc_;
 }
 
-Renderer::ImageView Scope::GetTexture(RenderGraphResource resource) const {
+RenderAPI::ImageView Scope::GetTexture(RenderGraphResource resource) const {
   const auto& it = textures_.find(resource);
   assert(it != textures_.cend());
   return it->second;

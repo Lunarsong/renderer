@@ -13,7 +13,7 @@
 #undef CreateSemaphore
 #endif
 
-namespace Renderer {
+namespace RenderAPI {
 namespace {
 GenerationalVector<InstanceVk> instances_;
 GenerationalVector<DeviceVk> devices_;
@@ -1343,4 +1343,4 @@ void SetSurface(Instance instance, VkSurfaceKHR surface) {
 VkInstance GetVkInstance(Instance instance) {
   return instances_[instance].instance;
 }
-}  // namespace Renderer
+}  // namespace RenderAPI

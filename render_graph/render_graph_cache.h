@@ -7,34 +7,34 @@
 
 class RenderGraphCache {
  public:
-  Renderer::ImageView CreateTransientTexture(
+  RenderAPI::ImageView CreateTransientTexture(
       const RenderGraphTextureDesc& info);
   const RenderGraphFramebuffer& CreateTransientFramebuffer(
       const RenderGraphFramebufferDesc& info,
-      const std::vector<Renderer::ImageView>& textures);
+      const std::vector<RenderAPI::ImageView>& textures);
 
-  Renderer::CommandBuffer AllocateCommand();
-  Renderer::Semaphore AllocateSemaphore();
+  RenderAPI::CommandBuffer AllocateCommand();
+  RenderAPI::Semaphore AllocateSemaphore();
 
-  void SetRenderObjects(Renderer::Device device, Renderer::CommandPool pool);
+  void SetRenderObjects(RenderAPI::Device device, RenderAPI::CommandPool pool);
   void Reset();
 
   void Destroy();
 
  private:
-  Renderer::Device device_;
-  Renderer::CommandPool pool_;
+  RenderAPI::Device device_;
+  RenderAPI::CommandPool pool_;
 
   size_t cmd_index_ = 0;
-  std::vector<Renderer::CommandBuffer> cmds_;
+  std::vector<RenderAPI::CommandBuffer> cmds_;
   size_t semaphore_index_ = 0;
-  std::vector<Renderer::Semaphore> semaphores_;
+  std::vector<RenderAPI::Semaphore> semaphores_;
 
   struct TransientTexture {
     RenderGraphTextureDesc info;
 
-    Renderer::ImageView image_view;
-    Renderer::Image image;
+    RenderAPI::ImageView image_view;
+    RenderAPI::Image image;
 
     uint8_t frames_since_use = 0;
   };
@@ -42,7 +42,7 @@ class RenderGraphCache {
     RenderGraphFramebufferDesc info;
 
     RenderGraphFramebuffer resources;
-    std::vector<Renderer::ImageView> textures;
+    std::vector<RenderAPI::ImageView> textures;
 
     uint8_t frames_since_use = 0;
   };

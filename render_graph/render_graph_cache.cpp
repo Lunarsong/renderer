@@ -11,8 +11,8 @@ bool operator==(const RenderGraphFramebufferDesc& a,
   return a.textures == b.textures;
 }
 
-void RenderGraphCache::SetRenderObjects(Renderer::Device device,
-                                        Renderer::CommandPool pool) {
+void RenderGraphCache::SetRenderObjects(RenderAPI::Device device,
+                                        RenderAPI::CommandPool pool) {
   device_ = device;
   pool_ = pool;
 }
@@ -29,67 +29,67 @@ void RenderGraphCache::Reset() {
   }
 }
 
-Renderer::CommandBuffer RenderGraphCache::AllocateCommand() {
+RenderAPI::CommandBuffer RenderGraphCache::AllocateCommand() {
   if (cmd_index_ == cmds_.size()) {
-    cmds_.emplace_back(Renderer::CreateCommandBuffer(pool_));
+    cmds_.emplace_back(RenderAPI::CreateCommandBuffer(pool_));
   }
   return cmds_[cmd_index_++];
 }
 
-Renderer::Semaphore RenderGraphCache::AllocateSemaphore() {
+RenderAPI::Semaphore RenderGraphCache::AllocateSemaphore() {
   if (semaphore_index_ == semaphores_.size()) {
-    semaphores_.emplace_back(Renderer::CreateSemaphore(device_));
+    semaphores_.emplace_back(RenderAPI::CreateSemaphore(device_));
   }
   return semaphores_[semaphore_index_++];
 }
 
 void RenderGraphCache::Destroy() {
   for (auto it : semaphores_) {
-    Renderer::DestroySemaphore(it);
+    RenderAPI::DestroySemaphore(it);
   }
   semaphores_.clear();
 
   for (auto& it : transient_buffers_) {
-    Renderer::DestroyFramebuffer(it.resources.framebuffer);
-    Renderer::DestroyRenderPass(it.resources.pass);
+    RenderAPI::DestroyFramebuffer(it.resources.framebuffer);
+    RenderAPI::DestroyRenderPass(it.resources.pass);
   }
 
   for (auto& it : transient_textures_) {
-    Renderer::DestroyImageView(device_, it.image_view);
-    Renderer::DestroyImage(it.image);
+    RenderAPI::DestroyImageView(device_, it.image_view);
+    RenderAPI::DestroyImage(it.image);
   }
 }
 
-Renderer::ImageAspectFlags GetAspectFlagBits(Renderer::TextureFormat format) {
-  if (format >= Renderer::TextureFormat::kD16_UNORM &&
-      format <= Renderer::TextureFormat::kD32_SFLOAT) {
-    return Renderer::ImageAspectFlagBits::kDepthBit;
+RenderAPI::ImageAspectFlags GetAspectFlagBits(RenderAPI::TextureFormat format) {
+  if (format >= RenderAPI::TextureFormat::kD16_UNORM &&
+      format <= RenderAPI::TextureFormat::kD32_SFLOAT) {
+    return RenderAPI::ImageAspectFlagBits::kDepthBit;
   }
 
-  if (format == Renderer::TextureFormat::kS8_UINT) {
-    return Renderer::ImageAspectFlagBits::kStencilBit;
+  if (format == RenderAPI::TextureFormat::kS8_UINT) {
+    return RenderAPI::ImageAspectFlagBits::kStencilBit;
   }
 
-  if (format >= Renderer::TextureFormat::kD16_UNORM_S8_UINT &&
-      format <= Renderer::TextureFormat::kD32_SFLOAT_S8_UINT) {
-    return Renderer::ImageAspectFlagBits::kDepthBit |
-           Renderer::ImageAspectFlagBits::kStencilBit;
+  if (format >= RenderAPI::TextureFormat::kD16_UNORM_S8_UINT &&
+      format <= RenderAPI::TextureFormat::kD32_SFLOAT_S8_UINT) {
+    return RenderAPI::ImageAspectFlagBits::kDepthBit |
+           RenderAPI::ImageAspectFlagBits::kStencilBit;
   }
-  return Renderer::ImageAspectFlagBits::kColorBit;
+  return RenderAPI::ImageAspectFlagBits::kColorBit;
 }
 
-Renderer::ImageUsageFlags GetImageUsageFlagsForFormat(
-    Renderer::TextureFormat format) {
-  if (format >= Renderer::TextureFormat::kD16_UNORM &&
-      format <= Renderer::TextureFormat::kD32_SFLOAT_S8_UINT) {
-    return Renderer::ImageUsageFlagBits::kSampledBit |
-           Renderer::ImageUsageFlagBits::kDepthStencilAttachmentBit;
+RenderAPI::ImageUsageFlags GetImageUsageFlagsForFormat(
+    RenderAPI::TextureFormat format) {
+  if (format >= RenderAPI::TextureFormat::kD16_UNORM &&
+      format <= RenderAPI::TextureFormat::kD32_SFLOAT_S8_UINT) {
+    return RenderAPI::ImageUsageFlagBits::kSampledBit |
+           RenderAPI::ImageUsageFlagBits::kDepthStencilAttachmentBit;
   }
-  return Renderer::ImageUsageFlagBits::kSampledBit |
-         Renderer::ImageUsageFlagBits::kColorAttachmentBit;
+  return RenderAPI::ImageUsageFlagBits::kSampledBit |
+         RenderAPI::ImageUsageFlagBits::kColorAttachmentBit;
 }
 
-Renderer::ImageView RenderGraphCache::CreateTransientTexture(
+RenderAPI::ImageView RenderGraphCache::CreateTransientTexture(
     const RenderGraphTextureDesc& info) {
   for (const auto& it : transient_textures_) {
     if (it.frames_since_use > 0 && it.info == info) {
@@ -99,16 +99,17 @@ Renderer::ImageView RenderGraphCache::CreateTransientTexture(
 
   // Create a new transient texture.
   TransientTexture texture;
-  Renderer::ImageCreateInfo image_create_info(
-      Renderer::TextureType::Texture2D, info.format,
-      Renderer::Extent3D(info.width, info.height, 1),
+  RenderAPI::ImageCreateInfo image_create_info(
+      RenderAPI::TextureType::Texture2D, info.format,
+      RenderAPI::Extent3D(info.width, info.height, 1),
       GetImageUsageFlagsForFormat(info.format));
-  texture.image = Renderer::CreateImage(device_, image_create_info);
-  const Renderer::ImageAspectFlags aspect_bits = GetAspectFlagBits(info.format);
-  Renderer::ImageViewCreateInfo image_view_info(
-      texture.image, Renderer::ImageViewType::Texture2D, info.format,
-      Renderer::ImageSubresourceRange(aspect_bits));
-  texture.image_view = Renderer::CreateImageView(device_, image_view_info);
+  texture.image = RenderAPI::CreateImage(device_, image_create_info);
+  const RenderAPI::ImageAspectFlags aspect_bits =
+      GetAspectFlagBits(info.format);
+  RenderAPI::ImageViewCreateInfo image_view_info(
+      texture.image, RenderAPI::ImageViewType::Texture2D, info.format,
+      RenderAPI::ImageSubresourceRange(aspect_bits));
+  texture.image_view = RenderAPI::CreateImageView(device_, image_view_info);
   texture.info = info;
   transient_textures_.emplace_back(std::move(texture));
   return transient_textures_.back().image_view;
@@ -116,7 +117,7 @@ Renderer::ImageView RenderGraphCache::CreateTransientTexture(
 
 const RenderGraphFramebuffer& RenderGraphCache::CreateTransientFramebuffer(
     const RenderGraphFramebufferDesc& info,
-    const std::vector<Renderer::ImageView>& textures) {
+    const std::vector<RenderAPI::ImageView>& textures) {
   for (TransientFramebuffer& it : transient_buffers_) {
     if (it.frames_since_use > 0 && it.info == info && textures == it.textures) {
       it.frames_since_use = 0;
@@ -126,34 +127,35 @@ const RenderGraphFramebuffer& RenderGraphCache::CreateTransientFramebuffer(
 
   TransientFramebuffer buffer;
 
-  Renderer::RenderPassCreateInfo render_pass_info;
+  RenderAPI::RenderPassCreateInfo render_pass_info;
   for (const auto& texture_desc : info.textures) {
-    const Renderer::ImageAspectFlags aspect_bits =
+    const RenderAPI::ImageAspectFlags aspect_bits =
         GetAspectFlagBits(texture_desc.format);
 
-    Renderer::AttachmentDescription attachment;
+    RenderAPI::AttachmentDescription attachment;
     attachment.final_layout = texture_desc.layout;
     attachment.format = texture_desc.format;
     attachment.load_op = texture_desc.load_op;
-    attachment.store_op = Renderer::AttachmentStoreOp::kStore;
-    if (aspect_bits & Renderer::ImageAspectFlagBits::kDepthBit ||
-        aspect_bits & Renderer::ImageAspectFlagBits::kStencilBit) {
+    attachment.store_op = RenderAPI::AttachmentStoreOp::kStore;
+    if (aspect_bits & RenderAPI::ImageAspectFlagBits::kDepthBit ||
+        aspect_bits & RenderAPI::ImageAspectFlagBits::kStencilBit) {
       attachment.load_op = texture_desc.load_op;
-      attachment.store_op = Renderer::AttachmentStoreOp::kStore;
+      attachment.store_op = RenderAPI::AttachmentStoreOp::kStore;
       attachment.stencil_load_op = texture_desc.load_op;
-      attachment.stencil_store_op = Renderer::AttachmentStoreOp::kStore;
+      attachment.stencil_store_op = RenderAPI::AttachmentStoreOp::kStore;
     }
     render_pass_info.attachments.emplace_back(std::move(attachment));
   }
 
-  buffer.resources.pass = Renderer::CreateRenderPass(device_, render_pass_info);
+  buffer.resources.pass =
+      RenderAPI::CreateRenderPass(device_, render_pass_info);
 
-  Renderer::FramebufferCreateInfo fb_info;
+  RenderAPI::FramebufferCreateInfo fb_info;
   fb_info.pass = buffer.resources.pass;
   fb_info.width = info.textures[0].width;
   fb_info.height = info.textures[0].height;
   fb_info.attachments = textures;
-  buffer.resources.framebuffer = Renderer::CreateFramebuffer(device_, fb_info);
+  buffer.resources.framebuffer = RenderAPI::CreateFramebuffer(device_, fb_info);
 
   for (const auto& texture_desc : info.textures) {
     buffer.resources.clear_values.emplace_back(texture_desc.clear_values);

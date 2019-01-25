@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace Renderer {
+namespace RenderAPI {
 struct Extent3D {
   uint32_t width;
   uint32_t height;
@@ -435,4 +435,4 @@ struct ImageSubresourceRange {
 };
 
 bool IsDepthStencilFormat(TextureFormat format);
-}  // namespace Renderer
+}  // namespace RenderAPI
