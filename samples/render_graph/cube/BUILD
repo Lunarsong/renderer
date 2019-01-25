@@ -3,8 +3,8 @@ load("//:glslang.bzl", "glslang")
 glslang(
   name = "shaders",
   srcs = [
-    "data/triangle.vert",
-    "data/triangle.frag",
+    "data/cube.vert",
+    "data/cube.frag",
   ],
 )
 
