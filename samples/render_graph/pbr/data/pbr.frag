@@ -103,7 +103,7 @@ vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, floa
 	float dotNL = clamp(dot(N, L), 0.0, 1.0);
 
 	// Light color fixed
-	vec3 light_color = vec3(300.0);
+	vec3 light_color = vec3(10.0);
 
 	vec3 color = vec3(0.0);
 
@@ -131,9 +131,9 @@ vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, floa
 void main() {
     vec3 light_pos = vec3(-1.0, 1.0, -1.0);
 
-	vec3 base_color = vec3(1.0, 0.71, 0.29);
-    float metallic = 0.99;
-	float roughness = 0.1;
+	vec3 base_color = SRGBToLinear(vec3(253.0, 181.0, 21.0) / vec3(255.0));
+    float metallic = 1.0;
+	float roughness = 0.25;
 	float ambient_occlusion = 1.0f;
 
     vec3 N = normalize(vNormal);

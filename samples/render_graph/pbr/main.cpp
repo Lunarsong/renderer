@@ -59,7 +59,7 @@ void Run() {
 
   Renderer* renderer = new Renderer(device);
   Scene scene;
-  scene.models.emplace_back(CreateCubeModel(device, command_pool));
+  scene.models.emplace_back(CreateSphereModel(device, command_pool));
 
   RenderAPI::Image irradiance_image;
   RenderAPI::ImageView irradiance_view;

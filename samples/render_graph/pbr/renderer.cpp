@@ -57,6 +57,8 @@ RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
   info.states.depth_stencil.depth_write_enable = true;
   info.states.depth_stencil.depth_test_enable = true;
 
+  // info.states.rasterization.front_face = RenderAPI::FrontFace::kClockwise;
+
   info.states.viewport.viewports.emplace_back(
       RenderAPI::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
 
