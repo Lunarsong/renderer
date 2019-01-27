@@ -7,6 +7,8 @@
 struct IndirectLight {
   RenderAPI::ImageView reflections;
   RenderAPI::ImageView irradiance;
+  RenderAPI::ImageView brdf;
+  RenderAPI::DescriptorSet descriptor = RenderAPI::kInvalidHandle;
 };
 
 struct Skybox {

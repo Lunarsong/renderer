@@ -42,12 +42,15 @@ void Run() {
   // Hack. Figure out how to hide this. Create a surface.
   CreateVkSurfance(instance, window);
 
+  int width, height;
+  glfwGetFramebufferSize(window, &width, &height);
+
   // Create a device and swapchain.
   RenderAPI::Device device = RenderAPI::CreateDevice(instance);
   RenderAPI::CommandPool command_pool = RenderAPI::CreateCommandPool(device);
 
   RenderGraph render_graph_(device);
-  render_graph_.BuildSwapChain(1980, 1200);
+  render_graph_.BuildSwapChain(width, height);
 
   RenderAPI::Image cubemap_image;
   RenderAPI::ImageView cubemap_view;
@@ -57,6 +60,20 @@ void Run() {
   Renderer* renderer = new Renderer(device);
   Scene scene;
   scene.models.emplace_back(CreateCubeModel(device, command_pool));
+
+  RenderAPI::Image irradiance_image;
+  RenderAPI::ImageView irradiance_view;
+  util::LoadTexture("samples/render_graph/pbr/data/irradiance.ktx", device,
+                    command_pool, irradiance_image, irradiance_view);
+  RenderAPI::Image prefilter_image;
+  RenderAPI::ImageView prefilter_view;
+  util::LoadTexture("samples/render_graph/pbr/data/prefilter.ktx", device,
+                    command_pool, prefilter_image, prefilter_view);
+  RenderAPI::Image brdf_image;
+  RenderAPI::ImageView brdf_view;
+  util::LoadTexture("samples/render_graph/pbr/data/brdf.ktx", device,
+                    command_pool, brdf_image, brdf_view);
+  renderer->SetIndirectLight(scene, irradiance_view, prefilter_view, brdf_view);
   renderer->SetSkybox(scene, cubemap_view);
 
   CameraController camera;
@@ -104,6 +121,7 @@ void Run() {
 
           view.camera.projection[1][1] *= -1.0f;
           view.camera.view = camera.view;
+          view.camera.position = camera.position;
         },
         [&](RenderContext* context, const Scope& scope) {
           renderer->Render(context->cmd, view, scene);
@@ -119,6 +137,12 @@ void Run() {
 
   RenderAPI::DestroyImageView(device, cubemap_view);
   RenderAPI::DestroyImage(cubemap_image);
+  RenderAPI::DestroyImageView(device, irradiance_view);
+  RenderAPI::DestroyImage(irradiance_image);
+  RenderAPI::DestroyImageView(device, prefilter_view);
+  RenderAPI::DestroyImage(prefilter_image);
+  RenderAPI::DestroyImageView(device, brdf_view);
+  RenderAPI::DestroyImage(brdf_image);
   RenderAPI::DestroyCommandPool(command_pool);
   RenderAPI::DestroyDevice(device);
   RenderAPI::Destroy(instance);

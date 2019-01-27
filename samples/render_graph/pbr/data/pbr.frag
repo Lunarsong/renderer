@@ -9,14 +9,18 @@ layout(location = 3) in vec3 vNormal;
 
 layout(location = 0) out vec4 outColor;
 
-/*layout(set = 0, binding = 0) uniform GlobalData {
+layout(set = 1, binding = 0) uniform GlobalData {
     vec3 uCameraPosition;
 };
 
-layout(set = 1, binding = 1) uniform ColorUniform {
-    vec4 color;
-};
-layout(binding = 2) uniform sampler2D uTexture0;*/
+layout(set = 1, binding = 1) uniform samplerCube uIrradianceMap;
+layout(set = 1, binding = 2) uniform samplerCube uPrefilteredMap;
+layout(set = 1, binding = 3) uniform sampler2D uBrdfLookupTable;
+
+layout(set = 2, binding = 0) uniform sampler2D uAlbedoMap;
+layout(set = 2, binding = 1) uniform sampler2D uNormal;
+layout(set = 2, binding = 2) uniform sampler2D uAmbientOcclusionMap;
+layout(set = 2, binding = 3) uniform sampler2D uMetallicRoughnessMap;
 
 
 #define PI 3.1415926535897932384626433832795
@@ -70,6 +74,17 @@ vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+vec3 PrefilteredReflection(vec3 R, float roughness)
+{
+	const float MAX_REFLECTION_LOD = 9.0;
+	float lod = roughness * MAX_REFLECTION_LOD;
+	float lodf = floor(lod);
+	float lodc = ceil(lod);
+	vec3 a = textureLod(uPrefilteredMap, R, lodf).rgb;
+	vec3 b = textureLod(uPrefilteredMap, R, lodc).rgb;
+	return mix(a, b, lod - lodf);
+}
+
 
 vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, float metallic, float roughness)
 {
@@ -104,18 +119,32 @@ vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, floa
 	return color;
 }
 
+vec4 SRGBtoLINEAR(vec4 srgbIn)
+{
+    #ifdef MANUAL_SRGB
+    #ifdef SRGB_FAST_APPROXIMATION
+    vec3 linOut = pow(srgbIn.xyz,vec3(2.2));
+    #else //SRGB_FAST_APPROXIMATION
+    vec3 bLess = step(vec3(0.04045),srgbIn.xyz);
+    vec3 linOut = mix( srgbIn.xyz/vec3(12.92), pow((srgbIn.xyz+vec3(0.055))/vec3(1.055),vec3(2.4)), bLess );
+    #endif //SRGB_FAST_APPROXIMATION
+    return vec4(linOut,srgbIn.w);;
+    #else //MANUAL_SRGB
+    return srgbIn;
+    #endif //MANUAL_SRGB
+}
+
 
 void main() {
-    vec3 camera_pos = vec3(0.0f, 2.5f, -5.0f);
     vec3 light_pos = vec3(-1.0, 1.0, -1.0);
 
-	vec3 base_color = vec3(1.0);
-    float metallic = 0.0;
-	float roughness = 1.0;
+	vec3 base_color = SRGBtoLINEAR(vec4(1.0, 0.85, 0.57, 1.0)).rgb;
+    float metallic = 1.0;
+	float roughness = 0.1;
 	float ambient_occlusion = 1.0f;
 
     vec3 N = normalize(vNormal);
-	vec3 V = normalize(camera_pos - vWorldPosition);
+	vec3 V = normalize(uCameraPosition - vWorldPosition);
 	vec3 R = -normalize(reflect(V, N));
     
 	/*if (material.hasMetallicRoughnessTexture == 1.0f) {
@@ -137,23 +166,22 @@ void main() {
 	}
 
 	// IBL.
-	//vec2 brdf = texture(samplerBRDFLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-	//vec3 reflection = prefilteredReflection(R, roughness).rgb;	
-	//vec3 irradiance = texture(samplerIrradiance, N).rgb;
+	vec2 brdf = texture(uBrdfLookupTable, vec2(max(dot(N, V), 0.0), roughness)).rg;
+	vec3 reflection = PrefilteredReflection(R, roughness).rgb;	
+	vec3 irradiance = texture(uIrradianceMap, N).rgb;
 	
 	// Diffuse based on irradiance.
-	float irradiance = 0.2; // temp
 	vec3 diffuse = irradiance * base_color;	
 
 	vec3 F = FresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
 	
 	// Specular reflectance.
-	//vec3 specular = reflection * (F * brdf.x + brdf.y);;
+	vec3 specular = reflection * (F * brdf.x + brdf.y);;
 
 	// Ambient part
 	vec3 kD = 1.0 - F;
 	kD *= 1.0 - metallic;
-	vec3 ambient = (kD * diffuse /*+ specular*/) * ambient_occlusion;
+	vec3 ambient = (kD * diffuse + specular) * ambient_occlusion;
 	vec3 color = ambient + Lo;
 	
 	 // HDR tonemapping

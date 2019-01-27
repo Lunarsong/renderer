@@ -30,5 +30,5 @@ void main() {
     
     vTexCoords = aTexCoords;
     vColor = aColor;
-    vNormal = normalize(mat3(uObjectData[gl_InstanceIndex].uMatNormalsMatrix) * aNormal);
+    vNormal = aNormal;//normalize(mat3(uObjectData[gl_InstanceIndex].uMatNormalsMatrix) * aNormal);
 }

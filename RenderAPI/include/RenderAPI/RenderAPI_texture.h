@@ -463,9 +463,9 @@ struct SamplerCreateInfo {
   SamplerFilter min_filter = SamplerFilter::kNearest;
   SamplerFilter mag_filter = SamplerFilter::kNearest;
   SamplerMipmapMode mipmap_mode = SamplerMipmapMode::kLinear;
-  SamplerAddressMode address_mode_u = SamplerAddressMode::kRepeat;
-  SamplerAddressMode address_mode_v = SamplerAddressMode::kRepeat;
-  SamplerAddressMode address_mode_w = SamplerAddressMode::kRepeat;
+  SamplerAddressMode address_mode_u = SamplerAddressMode::kClampToEdge;
+  SamplerAddressMode address_mode_v = SamplerAddressMode::kClampToEdge;
+  SamplerAddressMode address_mode_w = SamplerAddressMode::kClampToEdge;
   float min_lod = 0.0f;
   float max_lod = 1.0f;
 };

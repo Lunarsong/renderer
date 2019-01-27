@@ -138,11 +138,11 @@ RendererPipeline CreateCubemapPipeline(RenderAPI::Device device,
   RenderAPI::DescriptorSetLayoutCreateInfo descriptor_layout_info(
       {{{RenderAPI::DescriptorType::kCombinedImageSampler, 1,
          RenderAPI::ShaderStageFlagBits::kFragmentBit}}});
-  result.descriptor_layout =
-      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info);
+  result.descriptor_layouts.emplace_back(
+      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info));
 
   RenderAPI::PipelineLayoutCreateInfo layout_info;
-  layout_info.layouts.emplace_back(result.descriptor_layout);
+  layout_info.layouts = result.descriptor_layouts;
   layout_info.push_constants.push_back(
       {RenderAPI::ShaderStageFlagBits::kVertexBit, 0, sizeof(glm::mat4)});
   result.pipeline_layout = RenderAPI::CreatePipelineLayout(device, layout_info);
@@ -188,10 +188,13 @@ void DestroyRendererPipeline(RenderAPI::Device device,
     RenderAPI::DestroyPipelineLayout(device, pipeline.pipeline_layout);
     pipeline.pipeline_layout = RenderAPI::kInvalidHandle;
   }
-  if (pipeline.descriptor_layout != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyDescriptorSetLayout(pipeline.descriptor_layout);
-    pipeline.descriptor_layout = RenderAPI::kInvalidHandle;
+
+  for (auto& it : pipeline.descriptor_layouts) {
+    if (it != RenderAPI::kInvalidHandle) {
+      RenderAPI::DestroyDescriptorSetLayout(it);
+    }
   }
+  pipeline.descriptor_layouts.clear();
 }
 }  // namespace
 
@@ -214,47 +217,69 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
 
   // Cubemap pipeline.
   cubemap_pipeline_ = CreateCubemapPipeline(device, render_pass_);
-  cubemap_sampler_ = RenderAPI::CreateSampler(device_);
+  RenderAPI::SamplerCreateInfo sampler_info;
+  sampler_info.min_filter = RenderAPI::SamplerFilter::kLinear;
+  sampler_info.mag_filter = RenderAPI::SamplerFilter::kLinear;
+  sampler_info.max_lod = 9.0f;
+  cubemap_sampler_ = RenderAPI::CreateSampler(device_, sampler_info);
 
   // Pbr Pipeline.
   objects_uniform_ = RenderAPI::CreateBuffer(
       device, RenderAPI::BufferUsageFlagBits::kStorageBuffer,
       sizeof(ObjectsData) * kMaxInstances);
 
+  lights_uniform_ = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(glm::vec3));
+
   // Create the pipeline.
   RenderAPI::DescriptorSetLayoutCreateInfo descriptor_layout_info(
       {{{RenderAPI::DescriptorType::kStorageBuffer, 1,
          RenderAPI::ShaderStageFlagBits::kVertexBit}}});
-  descriptor_layout_ =
-      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info);
+  pbr_pipeline_.descriptor_layouts.emplace_back(
+      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info));
+
+  descriptor_layout_info.bindings.clear();
+  descriptor_layout_info.bindings = {
+      {RenderAPI::DescriptorType::kUniformBuffer, 1,
+       RenderAPI::ShaderStageFlagBits::kFragmentBit},
+      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
+       RenderAPI::ShaderStageFlagBits::kFragmentBit},
+      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
+       RenderAPI::ShaderStageFlagBits::kFragmentBit},
+      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
+       RenderAPI::ShaderStageFlagBits::kFragmentBit}};
+  pbr_pipeline_.descriptor_layouts.emplace_back(
+      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info));
 
   // Create a pipeline.
-  pipeline_layout_ =
-      RenderAPI::CreatePipelineLayout(device, {{descriptor_layout_}});
-  pipeline_ = CreatePipeline(device, render_pass_, pipeline_layout_);
+  pbr_pipeline_.pipeline_layout = RenderAPI::CreatePipelineLayout(
+      device, {{pbr_pipeline_.descriptor_layouts}});
+  pbr_pipeline_.pipeline =
+      CreatePipeline(device, render_pass_, pbr_pipeline_.pipeline_layout);
 
   // Create the descriptor sets.
   RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info = {
       {{RenderAPI::DescriptorType::kStorageBuffer, 1},
-       {RenderAPI::DescriptorType::kCombinedImageSampler, 1}},
-      /*max_sets=*/2};
+       {RenderAPI::DescriptorType::kUniformBuffer, 1},
+       {RenderAPI::DescriptorType::kCombinedImageSampler, 4}},
+      /*max_sets=*/3};
   descriptor_set_pool_ = RenderAPI::CreateDescriptorSetPool(device, pool_info);
 
-  RenderAPI::AllocateDescriptorSets(
-      descriptor_set_pool_,
-      std::vector<RenderAPI::DescriptorSetLayout>(1, descriptor_layout_),
-      &descriptor_set_);
+  RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
+                                    std::vector<RenderAPI::DescriptorSetLayout>(
+                                        1, pbr_pipeline_.descriptor_layouts[0]),
+                                    &objects_descriptor_set_);
 
   RenderAPI::WriteDescriptorSet write[1];
   RenderAPI::DescriptorBufferInfo instance_data_buffer_info;
   instance_data_buffer_info.buffer = objects_uniform_;
   instance_data_buffer_info.range = sizeof(ObjectsData) * kMaxInstances;
-  write[0].set = descriptor_set_;
+  write[0].set = objects_descriptor_set_;
   write[0].binding = 0;
   write[0].buffers = &instance_data_buffer_info;
   write[0].descriptor_count = 1;
   write[0].type = RenderAPI::DescriptorType::kStorageBuffer;
-
   RenderAPI::UpdateDescriptorSets(device, 1, write);
 }
 
@@ -272,29 +297,19 @@ Renderer::~Renderer() {
     lights_uniform_ = RenderAPI::kInvalidHandle;
   }
 
-  if (pipeline_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyGraphicsPipeline(pipeline_);
-    pipeline_ = RenderAPI::kInvalidHandle;
+  if (descriptor_set_pool_ != RenderAPI::kInvalidHandle) {
+    RenderAPI::DestroyDescriptorSetPool(descriptor_set_pool_);
+    descriptor_set_pool_ = RenderAPI::kInvalidHandle;
   }
-  if (pipeline_layout_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyPipelineLayout(device_, pipeline_layout_);
-    pipeline_layout_ = RenderAPI::kInvalidHandle;
-  }
+
+  DestroyRendererPipeline(device_, pbr_pipeline_);
+  DestroyRendererPipeline(device_, cubemap_pipeline_);
+
   if (render_pass_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroyRenderPass(render_pass_);
     render_pass_ = RenderAPI::kInvalidHandle;
   }
 
-  if (descriptor_set_pool_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyDescriptorSetPool(descriptor_set_pool_);
-    descriptor_set_pool_ = RenderAPI::kInvalidHandle;
-  }
-  if (descriptor_layout_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyDescriptorSetLayout(descriptor_layout_);
-    descriptor_layout_ = RenderAPI::kInvalidHandle;
-  }
-
-  DestroyRendererPipeline(device_, cubemap_pipeline_);
   if (cubemap_vertex_buffer_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroyBuffer(cubemap_vertex_buffer_);
     cubemap_vertex_buffer_ = RenderAPI::kInvalidHandle;
@@ -334,18 +349,25 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
   RenderAPI::CmdDrawIndexed(cmd, 36, 1, 0, 0, 0);
 
   // Draw the scene.
-  RenderAPI::CmdBindPipeline(cmd, pipeline_);
+  RenderAPI::CmdBindPipeline(cmd, pbr_pipeline_.pipeline);
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
   RenderAPI::CmdSetViewport(cmd, 0, 1, &view.viewport);
-  RenderAPI::CmdBindDescriptorSets(cmd, 0, pipeline_layout_, 0, 1,
-                                   &descriptor_set_);
+  RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 0, 1,
+                                   &objects_descriptor_set_);
+  RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 1, 1,
+                                   &scene.indirect_light.descriptor);
+
+  glm::vec3* lights_buffer =
+      reinterpret_cast<glm::vec3*>(RenderAPI::MapBuffer(lights_uniform_));
+  *lights_buffer = view.camera.position;
+  RenderAPI::UnmapBuffer(lights_uniform_);
 
   ObjectsData* objects_buffer =
       reinterpret_cast<ObjectsData*>(RenderAPI::MapBuffer(objects_uniform_));
   size_t instance_id = 0;
   for (const auto& model : scene.models) {
     for (const auto& primitive : model.primitives) {
-      static float rotation = 1.0f;
+      static float rotation = 0.0f;
       // rotation += 1 / 60.0f;
       objects_buffer[instance_id].uMatWorld =  // glm::identity<glm::mat4>();
           glm::mat4_cast(glm::angleAxis(rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
@@ -367,10 +389,11 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
 }
 
 void Renderer::SetSkybox(Scene& scene, RenderAPI::ImageView sky) {
-  RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
-                                    std::vector<RenderAPI::DescriptorSetLayout>(
-                                        1, cubemap_pipeline_.descriptor_layout),
-                                    &scene.skybox.descriptor);
+  RenderAPI::AllocateDescriptorSets(
+      descriptor_set_pool_,
+      std::vector<RenderAPI::DescriptorSetLayout>(
+          1, cubemap_pipeline_.descriptor_layouts[0]),
+      &scene.skybox.descriptor);
 
   RenderAPI::WriteDescriptorSet write[1];
   RenderAPI::DescriptorImageInfo image_info;
@@ -383,4 +406,52 @@ void Renderer::SetSkybox(Scene& scene, RenderAPI::ImageView sky) {
   write[0].images = &image_info;
 
   RenderAPI::UpdateDescriptorSets(device_, 1, write);
+}
+
+void Renderer::SetIndirectLight(Scene& scene, RenderAPI::ImageView irradiance,
+                                RenderAPI::ImageView reflections,
+                                RenderAPI::ImageView brdf) {
+  RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
+                                    std::vector<RenderAPI::DescriptorSetLayout>(
+                                        1, pbr_pipeline_.descriptor_layouts[1]),
+                                    &scene.indirect_light.descriptor);
+
+  RenderAPI::WriteDescriptorSet write[4];
+  RenderAPI::DescriptorBufferInfo buffer_info;
+  buffer_info.buffer = lights_uniform_;
+  buffer_info.range = sizeof(glm::vec3);
+  write[0].set = scene.indirect_light.descriptor;
+  write[0].binding = 0;
+  write[0].buffers = &buffer_info;
+  write[0].descriptor_count = 1;
+  write[0].type = RenderAPI::DescriptorType::kUniformBuffer;
+
+  RenderAPI::DescriptorImageInfo irradiance_info;
+  irradiance_info.image_view = irradiance;
+  irradiance_info.sampler = cubemap_sampler_;
+  write[1].set = scene.indirect_light.descriptor;
+  write[1].binding = 1;
+  write[1].descriptor_count = 1;
+  write[1].type = RenderAPI::DescriptorType::kCombinedImageSampler;
+  write[1].images = &irradiance_info;
+
+  RenderAPI::DescriptorImageInfo reflections_info;
+  reflections_info.image_view = reflections;
+  reflections_info.sampler = cubemap_sampler_;
+  write[2].set = scene.indirect_light.descriptor;
+  write[2].binding = 2;
+  write[2].descriptor_count = 1;
+  write[2].type = RenderAPI::DescriptorType::kCombinedImageSampler;
+  write[2].images = &reflections_info;
+
+  RenderAPI::DescriptorImageInfo brdf_info;
+  brdf_info.image_view = brdf;
+  brdf_info.sampler = cubemap_sampler_;
+  write[3].set = scene.indirect_light.descriptor;
+  write[3].binding = 3;
+  write[3].descriptor_count = 1;
+  write[3].type = RenderAPI::DescriptorType::kCombinedImageSampler;
+  write[3].images = &brdf_info;
+
+  RenderAPI::UpdateDescriptorSets(device_, 4, write);
 }

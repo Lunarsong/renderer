@@ -27,6 +27,7 @@ cc_binary(
     "data/cubemap.ktx",
     "data/irradiance.ktx",
     "data/prefilter.ktx",
+    "data/brdf.ktx",
   ],
 )
 

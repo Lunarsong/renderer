@@ -10,6 +10,7 @@ void UpdateCameraController(CameraController& camera, GLFWwindow* window,
                             double delta_seconds) {
   static double x = 0;
   static double y = 0;
+  static const float kSpeed = 4.0f;
 
   double xpos, ypos;
   glfwGetCursorPos(window, &xpos, &ypos);
@@ -45,7 +46,7 @@ void UpdateCameraController(CameraController& camera, GLFWwindow* window,
     move.y -= 1.0f;
   }
 
-  camera.position += yaw * move * static_cast<float>(delta_seconds);
+  camera.position += yaw * move * kSpeed * static_cast<float>(delta_seconds);
   camera.view = glm::mat4_cast(inverse(camera.rotation));
   camera.view = glm::translate(camera.view, -camera.position);
   camera.rotation = yaw * pitch;
