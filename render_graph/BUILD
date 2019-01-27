@@ -4,7 +4,7 @@ cc_library(
   hdrs = ["render_graph.h", "render_graph_pass.h", "render_graph_cache.h", "render_graph_resources.h", "render_graph_builder.h"],
   copts = [],
   deps = [
-    "//:renderer",
+    "//:RenderAPI",
     "//generational",
     "//generational:generational_vector",
   ],

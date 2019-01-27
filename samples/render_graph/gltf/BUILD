@@ -17,7 +17,7 @@ cc_binary(
     "@vulkan//:vulkan",
     "@TinyGLTF//:TinyGLTF",
     "@glm//:glm",
-    "//:renderer",
+    "//:RenderAPI",
     "//samples/common",
     "//render_graph:render_graph",
   ],

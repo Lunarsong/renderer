@@ -11,14 +11,14 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/transform.hpp>
 
-#include <renderer/renderer.h>
+#include <RenderAPI/RenderAPI.h>
 #include "render_graph/render_graph.h"
 #include "samples/common/util.h"
 
 void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window);
 RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
-                                          RenderAPI::RenderPass pass,
-                                          RenderAPI::PipelineLayout layout);
+                                           RenderAPI::RenderPass pass,
+                                           RenderAPI::PipelineLayout layout);
 GLFWwindow* InitWindow();
 void Shutdown(GLFWwindow* window);
 
@@ -152,9 +152,9 @@ void RenderCube(RenderContext* context, CubePass& pass) {
   RenderAPI::CmdBindPipeline(cmd, pass.pipeline);
   RenderAPI::CmdBindVertexBuffers(cmd, 0, 1, &pass.vertex_buffer);
   RenderAPI::CmdBindIndexBuffer(cmd, pass.index_buffer,
-                               RenderAPI::IndexType::kUInt32);
+                                RenderAPI::IndexType::kUInt32);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pass.pipeline_layout, 0, 1,
-                                  &pass.descriptor_set);
+                                   &pass.descriptor_set);
   RenderAPI::CmdDrawIndexed(cmd, 6 * 6);
 }
 
@@ -219,10 +219,10 @@ void CreateCubePass(CubePass& pass, RenderAPI::Device device,
       0.5, 0.5, 0.5f, 1.0, 1.0, 1.0, 1.0, 1.0     //
   };
   pass.vertex_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kVertex, sizeof(float) * cube.size(),
-      RenderAPI::MemoryUsage::kGpu);
-  RenderAPI::StageCopyDataToBuffer(command_pool, pass.vertex_buffer, cube.data(),
-                                  sizeof(float) * cube.size());
+      device, RenderAPI::BufferUsageFlagBits::kVertexBuffer,
+      sizeof(float) * cube.size(), RenderAPI::MemoryUsage::kGpu);
+  RenderAPI::StageCopyDataToBuffer(command_pool, pass.vertex_buffer,
+                                   cube.data(), sizeof(float) * cube.size());
 
   // Create the index buffer in GPU memory and copy the data.
   const std::vector<uint32_t> indices = {
@@ -235,18 +235,20 @@ void CreateCubePass(CubePass& pass, RenderAPI::Device device,
 
   };
   pass.index_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kIndex, sizeof(uint32_t) * indices.size(),
-      RenderAPI::MemoryUsage::kGpu);
+      device, RenderAPI::BufferUsageFlagBits::kIndexBuffer,
+      sizeof(uint32_t) * indices.size(), RenderAPI::MemoryUsage::kGpu);
   RenderAPI::StageCopyDataToBuffer(command_pool, pass.index_buffer,
-                                  indices.data(),
-                                  sizeof(uint32_t) * indices.size());
+                                   indices.data(),
+                                   sizeof(uint32_t) * indices.size());
 
   pass.uniform_buffer_mvp = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kUniform, sizeof(glm::mat4));
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(glm::mat4));
 
   float color[] = {0.5f, 0.5f, 0.5f, 1.0f};
   pass.uniform_buffer_color = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kUniform, sizeof(float) * 4);
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(float) * 4);
   memcpy(RenderAPI::MapBuffer(pass.uniform_buffer_color), color,
          sizeof(float) * 4);
   RenderAPI::UnmapBuffer(pass.uniform_buffer_color);
@@ -254,13 +256,13 @@ void CreateCubePass(CubePass& pass, RenderAPI::Device device,
   // Create the image and sampler.
   pass.image =
       RenderAPI::CreateImage(device, {RenderAPI::TextureType::Texture2D,
-                                     RenderAPI::TextureFormat::kR8G8B8A8_UNORM,
-                                     RenderAPI::Extent3D(2, 2, 1)});
+                                      RenderAPI::TextureFormat::kR8G8B8A8_UNORM,
+                                      RenderAPI::Extent3D(2, 2, 1)});
   unsigned char pixels[] = {255, 255, 255, 255, 0,   0,   0,   255,
                             0,   0,   0,   255, 255, 255, 255, 255};
   RenderAPI::BufferImageCopy image_copy(0, 0, 0, 2, 2, 1);
   RenderAPI::StageCopyDataToImage(command_pool, pass.image, pixels, 2 * 2 * 4,
-                                 image_copy);
+                                  1, &image_copy);
   RenderAPI::ImageViewCreateInfo image_view_info(
       pass.image, RenderAPI::ImageViewType::Texture2D,
       RenderAPI::TextureFormat::kR8G8B8A8_UNORM,
@@ -282,7 +284,8 @@ void CreateCubePass(CubePass& pass, RenderAPI::Device device,
 
   RenderAPI::RenderPassCreateInfo pass_info;
   pass_info.attachments.resize(2);
-  pass_info.attachments[0].final_layout = RenderAPI::ImageLayout::kPresentSrcKHR;
+  pass_info.attachments[0].final_layout =
+      RenderAPI::ImageLayout::kPresentSrcKHR;
   pass_info.attachments[0].format =
       RenderAPI::GetSwapChainImageFormat(graph.GetSwapChain());
   pass_info.attachments[1].final_layout =
@@ -355,8 +358,8 @@ void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window) {
 }
 
 RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
-                                          RenderAPI::RenderPass pass,
-                                          RenderAPI::PipelineLayout layout) {
+                                           RenderAPI::RenderPass pass,
+                                           RenderAPI::PipelineLayout layout) {
   RenderAPI::GraphicsPipeline pipeline = RenderAPI::kInvalidHandle;
 
   RenderAPI::GraphicsPipelineCreateInfo info;

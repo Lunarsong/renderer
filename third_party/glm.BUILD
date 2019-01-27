@@ -6,7 +6,6 @@ cc_library(
     visibility = ["//visibility:public"],
     defines = [
         "GLM_FORCE_RADIANS",
-        "GLM_FORCE_DEFAULT_ALIGNED_GENTYPES",
         "GLM_FORCE_LEFT_HANDED",
     ],
 )

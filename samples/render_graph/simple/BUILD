@@ -15,7 +15,7 @@ cc_binary(
   deps = [
     "@glfw//:glfw",
     "@vulkan//:vulkan",
-    "//:renderer",
+    "//:RenderAPI",
     "//samples/common",
     "//render_graph:render_graph",
   ],

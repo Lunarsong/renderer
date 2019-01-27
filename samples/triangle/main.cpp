@@ -5,7 +5,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <renderer/renderer.h>
+#include <RenderAPI/RenderAPI.h>
 #include "samples/common/util.h"
 
 void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window);
@@ -94,29 +94,31 @@ void Run() {
                                  0.5,  0.5,  0.0, 0.0, 1.0,  //
                                  -0.5, 0.5,  0.0, 1.0, 0.0};
   RenderAPI::Buffer vertex_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kVertex, sizeof(float) * triangle.size(),
-      RenderAPI::MemoryUsage::kGpu);
+      device, RenderAPI::BufferUsageFlagBits::kVertexBuffer,
+      sizeof(float) * triangle.size(), RenderAPI::MemoryUsage::kGpu);
   RenderAPI::StageCopyDataToBuffer(command_pool, vertex_buffer, triangle.data(),
                                    sizeof(float) * triangle.size());
 
   // Create the index buffer in GPU memory and copy the data.
   const uint32_t indices[] = {0, 1, 2};
   RenderAPI::Buffer index_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kIndex, sizeof(uint32_t) * 3,
-      RenderAPI::MemoryUsage::kGpu);
+      device, RenderAPI::BufferUsageFlagBits::kIndexBuffer,
+      sizeof(uint32_t) * 3, RenderAPI::MemoryUsage::kGpu);
   RenderAPI::StageCopyDataToBuffer(command_pool, index_buffer, indices,
                                    sizeof(uint32_t) * 3);
 
   float offsets[] = {0.5f, 0.0f, 0.0f, 0.0f};
   RenderAPI::Buffer uniform_buffer_offset = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kUniform, sizeof(float) * 4);
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(float) * 4);
   memcpy(RenderAPI::MapBuffer(uniform_buffer_offset), offsets,
          sizeof(float) * 4);
   RenderAPI::UnmapBuffer(uniform_buffer_offset);
 
   float color[] = {1.0f, 1.0f, 1.0f, 1.0f};
   RenderAPI::Buffer uniform_buffer_color = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kUniform, sizeof(float) * 4);
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(float) * 4);
   memcpy(RenderAPI::MapBuffer(uniform_buffer_color), color, sizeof(float) * 4);
   RenderAPI::UnmapBuffer(uniform_buffer_color);
 

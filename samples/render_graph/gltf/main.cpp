@@ -11,7 +11,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/transform.hpp>
 
-#include <renderer/renderer.h>
+#include <RenderAPI/RenderAPI.h>
 #include "render_graph/render_graph.h"
 #include "samples/common/util.h"
 
@@ -219,8 +219,8 @@ void CreateCubePass(CubePass& pass, RenderAPI::Device device,
       0.5, 0.5, 0.5f, 1.0, 1.0, 1.0, 1.0, 1.0     //
   };
   pass.vertex_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kVertex, sizeof(float) * cube.size(),
-      RenderAPI::MemoryUsage::kGpu);
+      device, RenderAPI::BufferUsageFlagBits::kVertexBuffer,
+      sizeof(float) * cube.size(), RenderAPI::MemoryUsage::kGpu);
   RenderAPI::StageCopyDataToBuffer(command_pool, pass.vertex_buffer,
                                    cube.data(), sizeof(float) * cube.size());
 
@@ -235,18 +235,20 @@ void CreateCubePass(CubePass& pass, RenderAPI::Device device,
 
   };
   pass.index_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kIndex, sizeof(uint32_t) * indices.size(),
-      RenderAPI::MemoryUsage::kGpu);
+      device, RenderAPI::BufferUsageFlagBits::kIndexBuffer,
+      sizeof(uint32_t) * indices.size(), RenderAPI::MemoryUsage::kGpu);
   RenderAPI::StageCopyDataToBuffer(command_pool, pass.index_buffer,
                                    indices.data(),
                                    sizeof(uint32_t) * indices.size());
 
   pass.uniform_buffer_mvp = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kUniform, sizeof(glm::mat4));
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(glm::mat4));
 
   float color[] = {0.5f, 0.5f, 0.5f, 1.0f};
   pass.uniform_buffer_color = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferType::kUniform, sizeof(float) * 4);
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(float) * 4);
   memcpy(RenderAPI::MapBuffer(pass.uniform_buffer_color), color,
          sizeof(float) * 4);
   RenderAPI::UnmapBuffer(pass.uniform_buffer_color);
@@ -260,7 +262,7 @@ void CreateCubePass(CubePass& pass, RenderAPI::Device device,
                             0,   0,   0,   255, 255, 255, 255, 255};
   RenderAPI::BufferImageCopy image_copy(0, 0, 0, 2, 2, 1);
   RenderAPI::StageCopyDataToImage(command_pool, pass.image, pixels, 2 * 2 * 4,
-                                  image_copy);
+                                  1, &image_copy);
   RenderAPI::ImageViewCreateInfo image_view_info(
       pass.image, RenderAPI::ImageViewType::Texture2D,
       RenderAPI::TextureFormat::kR8G8B8A8_UNORM,

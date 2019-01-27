@@ -1,0 +1,41 @@
+load("//:glslang.bzl", "glslang")
+
+glslang(
+  name = "shaders",
+  srcs = [
+    "data/pbr.vert",
+    "data/pbr.frag",
+    "data/cubemap.vert",
+    "data/cubemap.frag",
+  ],
+)
+
+cc_binary(
+  name = "pbr",
+  srcs = ["main.cpp", "util.h", "util.cpp"],
+  copts = [],
+  deps = [
+    "@glfw//:glfw",
+    "@glm//:glm",
+    "//:RenderAPI",
+    "//samples/common",
+    "//render_graph:render_graph",
+    ":pbr_renderer",
+  ],
+  data = [
+    ":shaders",
+    "data/cubemap.ktx",
+    "data/irradiance.ktx",
+    "data/prefilter.ktx",
+  ],
+)
+
+cc_library(
+  name = "pbr_renderer",
+  srcs = ["renderer.cpp"],
+  hdrs = ["renderer.h", "model.h", "scene.h", "camera.h", "view.h"],
+  deps = [
+    "@glm//:glm",
+    "//:RenderAPI",
+  ],
+)

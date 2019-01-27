@@ -50,3 +50,11 @@ new_git_repository(
     commit = "d6b0b0b990b342cf9eab9878b09de5bb7b031ebf",
     build_file = "third_party/TinyGLTF.BUILD",
 )
+
+# OpenGL Image.
+new_git_repository(
+    name = "gli",
+    remote = "https://github.com/g-truc/gli.git",
+    commit = "dd17acf9cc7fc6e6abe9f9ec69949eeeee1ccd82",
+    build_file = "third_party/gli.BUILD",
+)

@@ -1,8 +1,8 @@
 cc_library(
-  name = "renderer",
+  name = "RenderAPI",
   deps = [
-    "//renderer:renderer",
-    "//renderer/backends/vulkan:vulkan",
+    "//RenderAPI:RenderAPI",
+    "//RenderAPI/backends/vulkan:vulkan",
   ],
   visibility = ["//visibility:public"],
 )
