@@ -25,6 +25,14 @@ layout(set = 2, binding = 3) uniform sampler2D uMetallicRoughnessMap;
 
 #define PI 3.1415926535897932384626433832795
 
+vec3 SRGBToLinear(vec3 srgb) {
+	return pow(srgb, vec3(2.2));
+}
+
+vec4 SRGBToLinear(vec4 srgb) {
+	return vec4(pow(srgb.rgb, vec3(2.2)), srgb.a);
+}
+
 // ----------------------------------------------------------------------------
 // Easy trick to get tangent-normals to world-space to keep PBR code simplified.
 /*vec3 GetNormalFromMap()
@@ -119,27 +127,12 @@ vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, floa
 	return color;
 }
 
-vec4 SRGBtoLINEAR(vec4 srgbIn)
-{
-    #ifdef MANUAL_SRGB
-    #ifdef SRGB_FAST_APPROXIMATION
-    vec3 linOut = pow(srgbIn.xyz,vec3(2.2));
-    #else //SRGB_FAST_APPROXIMATION
-    vec3 bLess = step(vec3(0.04045),srgbIn.xyz);
-    vec3 linOut = mix( srgbIn.xyz/vec3(12.92), pow((srgbIn.xyz+vec3(0.055))/vec3(1.055),vec3(2.4)), bLess );
-    #endif //SRGB_FAST_APPROXIMATION
-    return vec4(linOut,srgbIn.w);;
-    #else //MANUAL_SRGB
-    return srgbIn;
-    #endif //MANUAL_SRGB
-}
-
 
 void main() {
     vec3 light_pos = vec3(-1.0, 1.0, -1.0);
 
-	vec3 base_color = SRGBtoLINEAR(vec4(1.0, 0.85, 0.57, 1.0)).rgb;
-    float metallic = 1.0;
+	vec3 base_color = vec3(1.0, 0.71, 0.29);
+    float metallic = 0.99;
 	float roughness = 0.1;
 	float ambient_occlusion = 1.0f;
 
@@ -187,7 +180,7 @@ void main() {
 	 // HDR tonemapping
     color = color / (color + vec3(1.0));
 	// Gamma correction
-	//color = pow(color, vec3(1.0f / vec3(1.0/2.2)));
+	color = pow(color,  vec3(1.0/2.2));
 
     outColor = vec4(color, 1.0);
 }
