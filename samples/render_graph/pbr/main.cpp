@@ -51,8 +51,8 @@ void Run() {
 
   RenderAPI::Image cubemap_image;
   RenderAPI::ImageView cubemap_view;
-  util::LoadTextureFromKtx("samples/render_graph/pbr/data/cubemap.ktx", device,
-                           command_pool, cubemap_image, cubemap_view);
+  util::LoadTexture("samples/render_graph/pbr/data/cubemap.ktx", device,
+                    command_pool, cubemap_image, cubemap_view);
 
   Renderer* renderer = new Renderer(device);
   Scene scene;
@@ -60,6 +60,8 @@ void Run() {
   renderer->SetSkybox(scene, cubemap_view);
 
   CameraController camera;
+  camera.position.z = -10.0f;
+  camera.position.y = 2.5f;
   std::chrono::high_resolution_clock::time_point time =
       std::chrono::high_resolution_clock::now();
   float rotation = 0.0f;

@@ -73,9 +73,60 @@ void LoadCubemap(const char* data, size_t size, RenderAPI::Device device,
   view = RenderAPI::CreateImageView(device, image_view_info);
 }
 
-bool LoadTextureFromKtx(const std::string& filename, RenderAPI::Device device,
-                        RenderAPI::CommandPool pool, RenderAPI::Image& image,
-                        RenderAPI::ImageView& view) {
+void LoadTexture2D(const char* data, size_t size, RenderAPI::Device device,
+                   RenderAPI::CommandPool pool, RenderAPI::Image& image,
+                   RenderAPI::ImageView& view) {
+  gli::texture texture(gli::load(data, size));
+  assert(!texture.empty());
+
+  RenderAPI::ImageCreateInfo image_info;
+  image_info.type = RenderAPI::TextureType::Texture2D;
+  image_info.format = static_cast<RenderAPI::TextureFormat>(texture.format());
+  image_info.extent =
+      RenderAPI::Extent3D(texture.extent().x, texture.extent().y, 1);
+  image_info.mips = texture.levels();
+  image_info.array_layers = 1;
+  image = RenderAPI::CreateImage(device, image_info);
+
+  std::vector<RenderAPI::BufferImageCopy> copy_regions(image_info.mips);
+
+  uint32_t i = 0;
+  size_t offset = 0;
+  for (int mip = 0; mip < image_info.mips; ++mip) {
+    RenderAPI::BufferImageCopy& region = copy_regions[i];
+
+    region.image_subsurface.aspect_mask =
+        RenderAPI::ImageAspectFlagBits::kColorBit;
+    region.image_subsurface.mip_level = mip;
+    region.image_subsurface.base_array_layer = 0;
+    region.image_extent.width = texture.extent(mip).x;
+    region.image_extent.height = texture.extent(mip).y;
+    region.image_extent.depth = 1;
+    region.buffer_offset = offset;
+
+    // Increase offset into staging buffer for next level.
+    offset += texture.size(mip);
+
+    ++i;
+  }
+
+  RenderAPI::StageCopyDataToImage(pool, image, texture.data(), texture.size(),
+                                  copy_regions.size(), copy_regions.data());
+
+  RenderAPI::ImageViewCreateInfo image_view_info;
+  image_view_info.image = image;
+  image_view_info.type = RenderAPI::ImageViewType::Texture2D;
+  image_view_info.format = image_info.format;
+  image_view_info.subresource_range.layer_count = 1;
+  image_view_info.subresource_range.level_count = image_info.mips;
+  image_view_info.subresource_range.aspect_mask =
+      RenderAPI::ImageAspectFlagBits::kColorBit;
+  view = RenderAPI::CreateImageView(device, image_view_info);
+}
+
+bool LoadTexture(const std::string& filename, RenderAPI::Device device,
+                 RenderAPI::CommandPool pool, RenderAPI::Image& image,
+                 RenderAPI::ImageView& view) {
   std::vector<char> file = ReadFile(filename);
   if (file.empty()) {
     return false;
@@ -85,16 +136,13 @@ bool LoadTextureFromKtx(const std::string& filename, RenderAPI::Device device,
       reinterpret_cast<const ktx::KtxHeader*>(file.data());
 
   if (strncmp(reinterpret_cast<const char*>(header->identifier),
-              reinterpret_cast<const char*>(ktx::kKtxIdentifier), 12) != 0) {
-    throw std::runtime_error(filename + " doesn't have Ktx identifier!");
-    return false;
-  }
-
-  if (header->number_of_faces == 6) {
+              reinterpret_cast<const char*>(ktx::kKtxIdentifier), 12) == 0 &&
+      header->number_of_faces == 6) {
     // Handle cubemap.
     LoadCubemap(file.data(), file.size(), device, pool, image, view);
   } else {
     // Handle non cubemap.
+    LoadTexture2D(file.data(), file.size(), device, pool, image, view);
   }
 
   return true;
