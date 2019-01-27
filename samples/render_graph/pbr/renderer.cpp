@@ -324,7 +324,7 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
   RenderAPI::CmdSetViewport(cmd, 0, 1, &view.viewport);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, cubemap_pipeline_.pipeline_layout, 0,
-                                   1, &scene.cubemap_descriptor);
+                                   1, &scene.skybox.descriptor);
   RenderAPI::CmdPushConstants(cmd, cubemap_pipeline_.pipeline_layout,
                               RenderAPI::ShaderStageFlagBits::kVertexBit, 0,
                               sizeof(glm::mat4), &cubemap_mvp);
@@ -366,17 +366,17 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
   RenderAPI::UnmapBuffer(objects_uniform_);
 }
 
-void Renderer::SetSkybox(Scene& scene, RenderAPI::ImageView view) {
+void Renderer::SetSkybox(Scene& scene, RenderAPI::ImageView sky) {
   RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
                                     std::vector<RenderAPI::DescriptorSetLayout>(
                                         1, cubemap_pipeline_.descriptor_layout),
-                                    &scene.cubemap_descriptor);
+                                    &scene.skybox.descriptor);
 
   RenderAPI::WriteDescriptorSet write[1];
   RenderAPI::DescriptorImageInfo image_info;
-  image_info.image_view = view;
+  image_info.image_view = sky;
   image_info.sampler = cubemap_sampler_;
-  write[0].set = scene.cubemap_descriptor;
+  write[0].set = scene.skybox.descriptor;
   write[0].binding = 0;
   write[0].descriptor_count = 1;
   write[0].type = RenderAPI::DescriptorType::kCombinedImageSampler;

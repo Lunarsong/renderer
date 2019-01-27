@@ -4,12 +4,23 @@
 #include <vector>
 #include "model.h"
 
+struct IndirectLight {
+  RenderAPI::ImageView reflections;
+  RenderAPI::ImageView irradiance;
+};
+
+struct Skybox {
+  RenderAPI::ImageView sky;
+  RenderAPI::DescriptorSet descriptor = RenderAPI::kInvalidHandle;
+};
+
 struct Scene {
   std::vector<Model> models;
 
-  RenderAPI::DescriptorSet cubemap_descriptor = RenderAPI::kInvalidHandle;
-  RenderAPI::Image cubemap_image;
-  RenderAPI::ImageView cubemap_image_view;
+  IndirectLight indirect_light;
+  Skybox skybox;
+
+  RenderAPI::DescriptorSet descriptor = RenderAPI::kInvalidHandle;
 };
 
 inline void DestroyScene(RenderAPI::Device device, Scene& scene) {

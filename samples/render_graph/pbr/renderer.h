@@ -18,7 +18,7 @@ class Renderer {
   void Render(RenderAPI::CommandBuffer buffer, const View& view,
               const Scene& scene);
 
-  void SetSkybox(Scene& scene, RenderAPI::ImageView view);
+  void SetSkybox(Scene& scene, RenderAPI::ImageView sky);
 
  private:
   RenderAPI::Device device_;
