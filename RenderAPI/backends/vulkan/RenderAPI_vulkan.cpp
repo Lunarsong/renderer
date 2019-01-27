@@ -1300,24 +1300,25 @@ void DestroyImageView(Device device, ImageView view) {
                      reinterpret_cast<VkImageView>(view), nullptr);
 }
 
-Sampler CreateSampler(Device device) {
+Sampler CreateSampler(Device device, SamplerCreateInfo info) {
   VkSamplerCreateInfo samplerInfo = {};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  samplerInfo.magFilter = VK_FILTER_LINEAR;
-  samplerInfo.minFilter = VK_FILTER_LINEAR;
-  // samplerInfo.magFilter = VK_FILTER_NEAREST;
-  // samplerInfo.minFilter = VK_FILTER_NEAREST;
-  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.magFilter = static_cast<VkFilter>(info.mag_filter);
+  samplerInfo.minFilter = static_cast<VkFilter>(info.min_filter);
+  samplerInfo.addressModeU =
+      static_cast<VkSamplerAddressMode>(info.address_mode_u);
+  samplerInfo.addressModeV =
+      static_cast<VkSamplerAddressMode>(info.address_mode_v);
+  samplerInfo.addressModeW =
+      static_cast<VkSamplerAddressMode>(info.address_mode_w);
   samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
   samplerInfo.unnormalizedCoordinates = VK_FALSE;
   samplerInfo.compareEnable = VK_FALSE;
   samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  samplerInfo.mipmapMode = static_cast<VkSamplerMipmapMode>(info.mipmap_mode);
   samplerInfo.mipLodBias = 0.0f;
-  samplerInfo.minLod = 0.0f;
-  samplerInfo.maxLod = 0.0f;
+  samplerInfo.minLod = info.min_lod;
+  samplerInfo.maxLod = info.max_lod;
   samplerInfo.anisotropyEnable = VK_FALSE;
   samplerInfo.maxAnisotropy = 1;
 

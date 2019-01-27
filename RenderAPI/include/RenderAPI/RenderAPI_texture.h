@@ -329,10 +329,6 @@ struct Swizzle {
   ComponentSwizzle a = ComponentSwizzle::kIdentity;
 };
 
-enum class TextureWrapMode { kClampToEdge, kMirroredRepeat, kRepeat };
-
-enum class TextureFilter { kPoint, kLinear };
-
 enum ImageUsageFlagBits {
   kTransferSrcBit = 0x00000001,
   kTransferDstBit = 0x00000002,
@@ -444,4 +440,34 @@ struct ImageSubresourceLayers {
 };
 
 bool IsDepthStencilFormat(TextureFormat format);
+
+enum class SamplerMipmapMode {
+  kNearest = 0,
+  kLinear = 1,
+};
+
+enum class SamplerAddressMode {
+  kRepeat = 0,
+  kMirroredRepeat = 1,
+  kClampToEdge = 2,
+  kClampToBorder = 3,
+  kMirrorClampToEdge = 4,
+};
+
+enum class SamplerFilter {
+  kNearest = 0,
+  kLinear = 1,
+};
+
+struct SamplerCreateInfo {
+  SamplerFilter min_filter = SamplerFilter::kNearest;
+  SamplerFilter mag_filter = SamplerFilter::kNearest;
+  SamplerMipmapMode mipmap_mode = SamplerMipmapMode::kLinear;
+  SamplerAddressMode address_mode_u = SamplerAddressMode::kRepeat;
+  SamplerAddressMode address_mode_v = SamplerAddressMode::kRepeat;
+  SamplerAddressMode address_mode_w = SamplerAddressMode::kRepeat;
+  float min_lod = 0.0f;
+  float max_lod = 1.0f;
+};
+
 }  // namespace RenderAPI

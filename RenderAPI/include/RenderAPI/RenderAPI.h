@@ -398,7 +398,8 @@ struct ImageViewCreateInfo {
 ImageView CreateImageView(Device device, const ImageViewCreateInfo& info);
 void DestroyImageView(Device device, ImageView view);
 
-Sampler CreateSampler(Device device);
+Sampler CreateSampler(Device device,
+                      SamplerCreateInfo info = SamplerCreateInfo());
 void DestroySampler(Device device, Sampler sampler);
 
 }  // namespace RenderAPI
