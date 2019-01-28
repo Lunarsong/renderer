@@ -7,12 +7,14 @@ glslang(
     "data/pbr.frag",
     "data/cubemap.vert",
     "data/cubemap.frag",
+    "data/tonemap.vert",
+    "data/tonemap.frag",
   ],
 )
 
 cc_binary(
   name = "pbr",
-  srcs = ["main.cpp", "util.h", "util.cpp"],
+  srcs = ["main.cpp", "util.h", "util.cpp", "tonemap_pass.h", "tonemap_pass.cpp"],
   copts = [],
   deps = [
     "@glfw//:glfw",

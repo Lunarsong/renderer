@@ -16,6 +16,7 @@
 #include "renderer.h"
 #include "samples/common/camera_controller.h"
 #include "samples/common/util.h"
+#include "tonemap_pass.h"
 
 #include "util.h"
 
@@ -76,6 +77,8 @@ void Run() {
   renderer->SetIndirectLight(scene, irradiance_view, prefilter_view, brdf_view);
   renderer->SetSkybox(scene, cubemap_view);
 
+  TonemapPass tonemap = CreateTonemapPass(device);
+
   CameraController camera;
   camera.position.z = -10.0f;
   camera.position.y = 2.5f;
@@ -98,10 +101,12 @@ void Run() {
     RenderGraphResource output;
     View view;
     render_graph_.AddPass(
-        "Cube",
+        "Scene",
         [&](RenderGraphBuilder& builder) {
           RenderGraphFramebufferDesc desc;
           desc.textures.push_back(render_graph_.GetSwapChainDescription());
+          desc.textures[0].layout =
+              RenderAPI::ImageLayout::kShaderReadOnlyOptimal;
           RenderGraphTextureDesc depth_desc;
           depth_desc.format = RenderAPI::TextureFormat::kD32_SFLOAT;
           depth_desc.width = desc.textures[0].width;
@@ -126,6 +131,10 @@ void Run() {
         [&](RenderContext* context, const Scope& scope) {
           renderer->Render(context->cmd, view, scene);
         });
+
+    output = AddTonemapPass(device, render_graph_, tonemap,
+                            /* use previous output as input */ output);
+
     render_graph_.MoveSubresource(output,
                                   render_graph_.GetBackbufferResource());
     render_graph_.Render();
@@ -135,6 +144,7 @@ void Run() {
   DestroyScene(device, scene);
   delete renderer;
 
+  DestroyTonemapPass(device, tonemap);
   RenderAPI::DestroyImageView(device, cubemap_view);
   RenderAPI::DestroyImage(cubemap_image);
   RenderAPI::DestroyImageView(device, irradiance_view);

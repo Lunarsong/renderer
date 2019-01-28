@@ -9,5 +9,5 @@ layout (binding = 0) uniform samplerCube samplerCubeMap;
 
 void main() {
     vec3 color = texture(samplerCubeMap, vTexCoords).rgb;
-    outColor = vec4(pow(color,  vec3(1.0/2.2)), 1.0);
+    outColor = vec4(color, 1.0);
 }

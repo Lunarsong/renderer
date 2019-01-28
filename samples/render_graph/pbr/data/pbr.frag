@@ -59,7 +59,7 @@ float DistributionGGX(float dotNH, float roughness)
 	float alpha = roughness * roughness;
 	float alpha2 = alpha * alpha;
 	float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
-	return alpha2 / (PI * denom * denom); 
+	return alpha2 / (PI * denom * denom);
 }
 
 // Geometric Shadowing function --------------------------------------
@@ -96,7 +96,7 @@ vec3 PrefilteredReflection(vec3 R, float roughness)
 
 vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, float metallic, float roughness)
 {
-	// Precalculate vectors and dot products	
+	// Precalculate vectors and dot products
 	vec3 H = normalize (V + L);
 	float dotNH = clamp(dot(N, H), 0.0, 1.0);
 	float dotNV = clamp(dot(N, V), 0.0, 1.0);
@@ -109,19 +109,19 @@ vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, floa
 
 	if (dotNL > 0.0) {
 		// D = Normal distribution (Distribution of the microfacets)
-		float D = DistributionGGX(dotNH, roughness); 
+		float D = DistributionGGX(dotNH, roughness);
 		// G = Geometric shadowing term (Microfacets shadowing)
 		float G = GeometrySmithGGX(dotNL, dotNV, roughness);
 		// F = Fresnel factor (Reflectance depending on angle of incidence)
-		vec3 F = FresnelSchlick(dotNV, F0);		
+		vec3 F = FresnelSchlick(dotNV, F0);
 		vec3 spec = D * F * G / (4.0 * dotNL * dotNV + 0.001);
 		// For energy conservation, the diffuse and specular light can't
         // be above 1.0 (unless the surface emits light); to preserve this
         // relationship the diffuse component (kD) should equal 1.0 - F.
-		// Multiply kD by the inverse metalness such that only non-metals 
+		// Multiply kD by the inverse metalness such that only non-metals
         // have diffuse lighting, or a linear blend if partly metal (pure metals
         // have no diffuse light).
-		vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);			
+		vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
 		color += (kD * base_color / PI + spec) * light_color * dotNL;
 	}
 	return color;
@@ -139,7 +139,7 @@ void main() {
     vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCameraPosition - vWorldPosition);
 	vec3 R = -normalize(reflect(V, N));
-    
+
 	/*if (material.hasMetallicRoughnessTexture == 1.0f) {
 		metallic *= texture(metallicMap, vTexCoords).b;
 		roughness *= clamp(texture(metallicMap, vTexCoords).g, 0.04, 1.0);
@@ -147,7 +147,7 @@ void main() {
 
 	// Calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow).
-    vec3 F0 = vec3(0.04); 
+    vec3 F0 = vec3(0.04);
 	F0 = mix(F0, base_color, metallic);
 
 	vec3 Lo = vec3(0.0);
@@ -160,14 +160,14 @@ void main() {
 
 	// IBL.
 	vec2 brdf = texture(uBrdfLookupTable, vec2(max(dot(N, V), 0.0), roughness)).rg;
-	vec3 reflection = PrefilteredReflection(R, roughness).rgb;	
+	vec3 reflection = PrefilteredReflection(R, roughness).rgb;
 	vec3 irradiance = texture(uIrradianceMap, N).rgb;
-	
+
 	// Diffuse based on irradiance.
-	vec3 diffuse = irradiance * base_color;	
+	vec3 diffuse = irradiance * base_color;
 
 	vec3 F = FresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
-	
+
 	// Specular reflectance.
 	vec3 specular = reflection * (F * brdf.x + brdf.y);;
 
@@ -176,11 +176,6 @@ void main() {
 	kD *= 1.0 - metallic;
 	vec3 ambient = (kD * diffuse + specular) * ambient_occlusion;
 	vec3 color = ambient + Lo;
-	
-	 // HDR tonemapping
-    color = color / (color + vec3(1.0));
-	// Gamma correction
-	color = pow(color,  vec3(1.0/2.2));
 
     outColor = vec4(color, 1.0);
 }

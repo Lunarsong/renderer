@@ -346,6 +346,11 @@ struct DescriptorSetLayoutBinding {
   DescriptorType type;
   uint32_t count = 0;
   ShaderStageFlags stages;
+
+  DescriptorSetLayoutBinding() = default;
+  DescriptorSetLayoutBinding(DescriptorType type, uint32_t count,
+                             ShaderStageFlags stages)
+      : type(type), count(count), stages(stages) {}
 };
 struct DescriptorSetLayoutCreateInfo {
   std::vector<DescriptorSetLayoutBinding> bindings;
