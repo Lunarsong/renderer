@@ -52,7 +52,8 @@ void RenderGraph::BuildSwapChain(uint32_t width, uint32_t height) {
 
   swapchain_ = RenderAPI::CreateSwapChain(device_, width, height);
   const uint32_t swapchain_length = RenderAPI::GetSwapChainLength(swapchain_);
-  max_frames_in_flight = 1;  // swapchain_length;
+  max_frames_in_flight = swapchain_length;
+  cache_.PrepareBufferedResources(max_frames_in_flight);
 
   swapchain_desc_.width = width;
   swapchain_desc_.height = height;

@@ -134,7 +134,7 @@ void Run() {
           renderer->Render(context->cmd, view, scene);
         });
 
-    output = AddTonemapPass(device, render_graph_, tonemap,
+    output = AddTonemapPass(device, render_graph_, &tonemap,
                             /* use previous output as input */ output);
 
     render_graph_.MoveSubresource(output,

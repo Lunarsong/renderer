@@ -11,6 +11,12 @@ bool operator==(const RenderGraphFramebufferDesc& a,
   return a.textures == b.textures;
 }
 
+void RenderGraphCache::PrepareBufferedResources(uint32_t size) {
+  if (size > buffered_resources_.size()) {
+    buffered_resources_.resize(size);
+  }
+}
+
 void RenderGraphCache::SetRenderObjects(RenderAPI::Device device,
                                         RenderAPI::CommandPool pool) {
   device_ = device;
@@ -18,8 +24,9 @@ void RenderGraphCache::SetRenderObjects(RenderAPI::Device device,
 }
 
 void RenderGraphCache::Reset() {
-  cmd_index_ = 0;
-  semaphore_index_ = 0;
+  resources_index_ = (resources_index_ + 1) % buffered_resources_.size();
+  buffered_resources_[resources_index_].cmd_index = 0;
+  buffered_resources_[resources_index_].semaphore_index = 0;
 
   for (auto& it : transient_buffers_) {
     ++it.frames_since_use;
@@ -30,24 +37,32 @@ void RenderGraphCache::Reset() {
 }
 
 RenderAPI::CommandBuffer RenderGraphCache::AllocateCommand() {
-  if (cmd_index_ == cmds_.size()) {
-    cmds_.emplace_back(RenderAPI::CreateCommandBuffer(pool_));
+  if (buffered_resources_[resources_index_].cmd_index ==
+      buffered_resources_[resources_index_].cmds.size()) {
+    buffered_resources_[resources_index_].cmds.emplace_back(
+        RenderAPI::CreateCommandBuffer(pool_));
   }
-  return cmds_[cmd_index_++];
+  return buffered_resources_[resources_index_]
+      .cmds[buffered_resources_[resources_index_].cmd_index++];
 }
 
 RenderAPI::Semaphore RenderGraphCache::AllocateSemaphore() {
-  if (semaphore_index_ == semaphores_.size()) {
-    semaphores_.emplace_back(RenderAPI::CreateSemaphore(device_));
+  if (buffered_resources_[resources_index_].semaphore_index ==
+      buffered_resources_[resources_index_].semaphores.size()) {
+    buffered_resources_[resources_index_].semaphores.emplace_back(
+        RenderAPI::CreateSemaphore(device_));
   }
-  return semaphores_[semaphore_index_++];
+  return buffered_resources_[resources_index_]
+      .semaphores[buffered_resources_[resources_index_].semaphore_index++];
 }
 
 void RenderGraphCache::Destroy() {
-  for (auto it : semaphores_) {
-    RenderAPI::DestroySemaphore(it);
+  for (auto& it : buffered_resources_) {
+    for (auto semaphore : it.semaphores) {
+      RenderAPI::DestroySemaphore(semaphore);
+    }
+    it.semaphores.clear();
   }
-  semaphores_.clear();
 
   for (auto& it : transient_buffers_) {
     RenderAPI::DestroyFramebuffer(it.resources.framebuffer);
@@ -91,8 +106,9 @@ RenderAPI::ImageUsageFlags GetImageUsageFlagsForFormat(
 
 RenderAPI::ImageView RenderGraphCache::CreateTransientTexture(
     const RenderGraphTextureDesc& info) {
-  for (const auto& it : transient_textures_) {
+  for (auto& it : transient_textures_) {
     if (it.frames_since_use > 0 && it.info == info) {
+      it.frames_since_use = 0;
       return it.image_view;
     }
   }
@@ -126,6 +142,7 @@ const RenderGraphFramebuffer& RenderGraphCache::CreateTransientFramebuffer(
   }
 
   TransientFramebuffer buffer;
+  buffer.textures = textures;
 
   RenderAPI::RenderPassCreateInfo render_pass_info;
   for (const auto& texture_desc : info.textures) {

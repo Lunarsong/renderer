@@ -7,6 +7,8 @@
 
 class RenderGraphCache {
  public:
+  void PrepareBufferedResources(uint32_t size);
+
   RenderAPI::ImageView CreateTransientTexture(
       const RenderGraphTextureDesc& info);
   const RenderGraphFramebuffer& CreateTransientFramebuffer(
@@ -25,10 +27,14 @@ class RenderGraphCache {
   RenderAPI::Device device_;
   RenderAPI::CommandPool pool_;
 
-  size_t cmd_index_ = 0;
-  std::vector<RenderAPI::CommandBuffer> cmds_;
-  size_t semaphore_index_ = 0;
-  std::vector<RenderAPI::Semaphore> semaphores_;
+  uint32_t resources_index_ = 0;
+  struct BufferedResources {
+    size_t cmd_index = 0;
+    std::vector<RenderAPI::CommandBuffer> cmds;
+    size_t semaphore_index = 0;
+    std::vector<RenderAPI::Semaphore> semaphores;
+  };
+  std::vector<BufferedResources> buffered_resources_;
 
   struct TransientTexture {
     RenderGraphTextureDesc info;

@@ -199,11 +199,11 @@ std::vector<RenderGraphNode> RenderGraphBuilder::Build(
   }*/
   // Create dumb semaphores for now (later optimize
   // semaphores to be created for dependencies).
-  for (size_t i = 1; i < nodes.size(); ++i) {
+  /*for (size_t i = 1; i < nodes.size(); ++i) {
     RenderAPI::Semaphore semaphore = cache_->AllocateSemaphore();
     nodes[i - 1].signal_semaphores.emplace_back(semaphore);
     nodes[i].wait_semaphores.emplace_back(semaphore);
-  }
+  }*/
 
   // Create the command buffers.
   for (auto& it : nodes) {

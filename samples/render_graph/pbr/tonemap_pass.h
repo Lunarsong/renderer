@@ -15,11 +15,13 @@ struct TonemapPass {
   RenderAPI::DescriptorSet descriptor_set;
 
   RenderAPI::Sampler sampler;
+
+  RenderAPI::ImageView cached_hdr_texture_;
 };
 
 TonemapPass CreateTonemapPass(RenderAPI::Device device);
 void DestroyTonemapPass(RenderAPI::Device device, TonemapPass& tonemap);
 RenderGraphResource AddTonemapPass(RenderAPI::Device device,
                                    RenderGraph& render_graph,
-                                   TonemapPass& tonemap,
+                                   TonemapPass* tonemap,
                                    RenderGraphResource texture);
