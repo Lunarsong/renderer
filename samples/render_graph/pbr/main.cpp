@@ -105,6 +105,8 @@ void Run() {
         [&](RenderGraphBuilder& builder) {
           RenderGraphFramebufferDesc desc;
           desc.textures.push_back(render_graph_.GetSwapChainDescription());
+          desc.textures[0].format =
+              RenderAPI::TextureFormat::kR16G16B16A16_SFLOAT;
           desc.textures[0].layout =
               RenderAPI::ImageLayout::kShaderReadOnlyOptimal;
           RenderGraphTextureDesc depth_desc;

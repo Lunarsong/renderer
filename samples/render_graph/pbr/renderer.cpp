@@ -211,7 +211,8 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   pass_info.attachments.resize(2);
   pass_info.attachments[0].final_layout =
       RenderAPI::ImageLayout::kPresentSrcKHR;
-  pass_info.attachments[0].format = RenderAPI::TextureFormat::kB8G8R8A8_UNORM;
+  pass_info.attachments[0].format =
+      RenderAPI::TextureFormat::kR16G16B16A16_SFLOAT;
   pass_info.attachments[1].final_layout =
       RenderAPI::ImageLayout::kDepthStencilAttachmentOptimal;
   pass_info.attachments[1].format = RenderAPI::TextureFormat::kD32_SFLOAT;
