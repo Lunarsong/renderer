@@ -132,7 +132,7 @@ void CompileQuadPass(QuadPass& pass, RenderAPI::Device device,
   pass.descriptor_set_pool =
       RenderAPI::CreateDescriptorSetPool(device, pool_info);
 
-  pass.descriptor_sets = BufferedDescriptorSet::Create(
+  pass.descriptor_sets = RenderUtils::BufferedDescriptorSet::Create(
       device, pass.descriptor_set_pool, pass.descriptor_layout);
 
   RenderAPI::WriteDescriptorSet write[3];

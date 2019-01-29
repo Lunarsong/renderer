@@ -6,6 +6,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/transform.hpp>
 #include <string>
+#include "vertex.h"
 
 namespace {
 constexpr size_t kMaxInstances = 1024;
@@ -42,15 +43,7 @@ RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
   info.fragment.code_size = frag.size();
-  info.vertex_input.resize(1);
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, 0});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec2, sizeof(float) * 3});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 5});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 8});
+  info.vertex_input = {{Vertex::layout}};
   info.layout = layout;
 
   info.states.blend.attachments.resize(1);
@@ -226,15 +219,6 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   sampler_info.max_lod = 9.0f;
   cubemap_sampler_ = RenderAPI::CreateSampler(device_, sampler_info);
 
-  // Pbr Pipeline.
-  objects_uniform_ = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferUsageFlagBits::kStorageBuffer,
-      sizeof(ObjectsData) * kMaxInstances);
-
-  lights_uniform_ = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
-      sizeof(glm::vec3));
-
   // Create the pipeline.
   RenderAPI::DescriptorSetLayoutCreateInfo descriptor_layout_info(
       {{{RenderAPI::DescriptorType::kStorageBuffer, 1,
@@ -264,40 +248,16 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   // Create the descriptor sets.
   RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info = {
       {{RenderAPI::DescriptorType::kStorageBuffer, 1},
-       {RenderAPI::DescriptorType::kUniformBuffer, 1},
-       {RenderAPI::DescriptorType::kCombinedImageSampler, 4}},
-      /*max_sets=*/3};
+       {RenderAPI::DescriptorType::kUniformBuffer, 3},
+       {RenderAPI::DescriptorType::kCombinedImageSampler, 4 * 3}},
+      /*max_sets=*/7};
   descriptor_set_pool_ = RenderAPI::CreateDescriptorSetPool(device, pool_info);
-
-  RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
-                                    std::vector<RenderAPI::DescriptorSetLayout>(
-                                        1, pbr_pipeline_.descriptor_layouts[0]),
-                                    &objects_descriptor_set_);
-
-  RenderAPI::WriteDescriptorSet write[1];
-  RenderAPI::DescriptorBufferInfo instance_data_buffer_info;
-  instance_data_buffer_info.buffer = objects_uniform_;
-  instance_data_buffer_info.range = sizeof(ObjectsData) * kMaxInstances;
-  write[0].set = objects_descriptor_set_;
-  write[0].binding = 0;
-  write[0].buffers = &instance_data_buffer_info;
-  write[0].descriptor_count = 1;
-  write[0].type = RenderAPI::DescriptorType::kStorageBuffer;
-  RenderAPI::UpdateDescriptorSets(device, 1, write);
 }
 
 Renderer::~Renderer() {
   if (cubemap_sampler_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroySampler(device_, cubemap_sampler_);
     cubemap_sampler_ = RenderAPI::kInvalidHandle;
-  }
-  if (objects_uniform_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyBuffer(objects_uniform_);
-    objects_uniform_ = RenderAPI::kInvalidHandle;
-  }
-  if (lights_uniform_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyBuffer(lights_uniform_);
-    lights_uniform_ = RenderAPI::kInvalidHandle;
   }
 
   if (descriptor_set_pool_ != RenderAPI::kInvalidHandle) {
@@ -328,21 +288,22 @@ Renderer::~Renderer() {
   }
 }
 
-void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
+void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
                       const Scene& scene) {
-  glm::mat4 cubemap_mvp = view.camera.view;
+  glm::mat4 cubemap_mvp = view->camera.view;
   cubemap_mvp[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-  cubemap_mvp = view.camera.projection * cubemap_mvp;
+  cubemap_mvp = view->camera.projection * cubemap_mvp;
   RenderAPI::Rect2D scissor = {
       RenderAPI::Offset2D(0, 0),
-      RenderAPI::Extent2D(view.viewport.width, view.viewport.height)};
+      RenderAPI::Extent2D(view->viewport.width, view->viewport.height)};
 
   // Draw the Skybox.
+  SetSkybox(*view, scene.skybox);
   RenderAPI::CmdBindPipeline(cmd, cubemap_pipeline_.pipeline);
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
-  RenderAPI::CmdSetViewport(cmd, 0, 1, &view.viewport);
+  RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, cubemap_pipeline_.pipeline_layout, 0,
-                                   1, &scene.skybox.descriptor);
+                                   1, view->skybox_set);
   RenderAPI::CmdPushConstants(cmd, cubemap_pipeline_.pipeline_layout,
                               RenderAPI::ShaderStageFlagBits::kVertexBit, 0,
                               sizeof(glm::mat4), &cubemap_mvp);
@@ -352,21 +313,22 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
   RenderAPI::CmdDrawIndexed(cmd, 36, 1, 0, 0, 0);
 
   // Draw the scene.
+  SetIndirectLight(*view, scene.indirect_light);
   RenderAPI::CmdBindPipeline(cmd, pbr_pipeline_.pipeline);
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
-  RenderAPI::CmdSetViewport(cmd, 0, 1, &view.viewport);
+  RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 0, 1,
-                                   &objects_descriptor_set_);
+                                   &view->objects_set);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 1, 1,
-                                   &scene.indirect_light.descriptor);
+                                   view->indirect_light_set);
 
   glm::vec3* lights_buffer =
-      reinterpret_cast<glm::vec3*>(RenderAPI::MapBuffer(lights_uniform_));
-  *lights_buffer = view.camera.position;
-  RenderAPI::UnmapBuffer(lights_uniform_);
+      reinterpret_cast<glm::vec3*>(RenderAPI::MapBuffer(view->lights_uniform));
+  *lights_buffer = view->camera.position;
+  RenderAPI::UnmapBuffer(view->lights_uniform);
 
-  ObjectsData* objects_buffer =
-      reinterpret_cast<ObjectsData*>(RenderAPI::MapBuffer(objects_uniform_));
+  ObjectsData* objects_buffer = reinterpret_cast<ObjectsData*>(
+      RenderAPI::MapBuffer(view->objects_uniform));
   size_t instance_id = 0;
   for (const auto& model : scene.models) {
     for (const auto& primitive : model.primitives) {
@@ -375,7 +337,7 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
       objects_buffer[instance_id].uMatWorld =  // glm::identity<glm::mat4>();
           glm::mat4_cast(glm::angleAxis(rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
       objects_buffer[instance_id].uMatWorldViewProjection =
-          view.camera.projection * view.camera.view *
+          view->camera.projection * view->camera.view *
           objects_buffer[instance_id].uMatWorld;
       objects_buffer[instance_id].uMatNormalsMatrix =
           glm::transpose(glm::inverse(objects_buffer[instance_id].uMatWorld));
@@ -388,73 +350,105 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, const View& view,
                                 instance_id++);
     }
   }
-  RenderAPI::UnmapBuffer(objects_uniform_);
+  RenderAPI::UnmapBuffer(view->objects_uniform);
 }
 
-void Renderer::SetSkybox(Scene& scene, RenderAPI::ImageView sky) {
-  RenderAPI::AllocateDescriptorSets(
-      descriptor_set_pool_,
-      std::vector<RenderAPI::DescriptorSetLayout>(
-          1, cubemap_pipeline_.descriptor_layouts[0]),
-      &scene.skybox.descriptor);
-
+void Renderer::SetSkybox(View& view, const Skybox& skybox) {
+  ++view.skybox_set;
   RenderAPI::WriteDescriptorSet write[1];
   RenderAPI::DescriptorImageInfo image_info;
-  image_info.image_view = sky;
+  image_info.image_view = skybox.sky;
   image_info.sampler = cubemap_sampler_;
-  write[0].set = scene.skybox.descriptor;
+  write[0].set = view.skybox_set;
   write[0].binding = 0;
   write[0].descriptor_count = 1;
   write[0].type = RenderAPI::DescriptorType::kCombinedImageSampler;
   write[0].images = &image_info;
-
   RenderAPI::UpdateDescriptorSets(device_, 1, write);
 }
 
-void Renderer::SetIndirectLight(Scene& scene, RenderAPI::ImageView irradiance,
-                                RenderAPI::ImageView reflections,
-                                RenderAPI::ImageView brdf) {
-  RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
-                                    std::vector<RenderAPI::DescriptorSetLayout>(
-                                        1, pbr_pipeline_.descriptor_layouts[1]),
-                                    &scene.indirect_light.descriptor);
+void Renderer::SetIndirectLight(View& view, const IndirectLight& light) {
+  ++view.indirect_light_set;
 
   RenderAPI::WriteDescriptorSet write[4];
   RenderAPI::DescriptorBufferInfo buffer_info;
-  buffer_info.buffer = lights_uniform_;
+  buffer_info.buffer = view.lights_uniform;
   buffer_info.range = sizeof(glm::vec3);
-  write[0].set = scene.indirect_light.descriptor;
+  write[0].set = view.indirect_light_set;
   write[0].binding = 0;
   write[0].buffers = &buffer_info;
   write[0].descriptor_count = 1;
   write[0].type = RenderAPI::DescriptorType::kUniformBuffer;
 
   RenderAPI::DescriptorImageInfo irradiance_info;
-  irradiance_info.image_view = irradiance;
+  irradiance_info.image_view = light.irradiance;
   irradiance_info.sampler = cubemap_sampler_;
-  write[1].set = scene.indirect_light.descriptor;
+  write[1].set = view.indirect_light_set;
   write[1].binding = 1;
   write[1].descriptor_count = 1;
   write[1].type = RenderAPI::DescriptorType::kCombinedImageSampler;
   write[1].images = &irradiance_info;
 
   RenderAPI::DescriptorImageInfo reflections_info;
-  reflections_info.image_view = reflections;
+  reflections_info.image_view = light.reflections;
   reflections_info.sampler = cubemap_sampler_;
-  write[2].set = scene.indirect_light.descriptor;
+  write[2].set = view.indirect_light_set;
   write[2].binding = 2;
   write[2].descriptor_count = 1;
   write[2].type = RenderAPI::DescriptorType::kCombinedImageSampler;
   write[2].images = &reflections_info;
 
   RenderAPI::DescriptorImageInfo brdf_info;
-  brdf_info.image_view = brdf;
+  brdf_info.image_view = light.brdf;
   brdf_info.sampler = cubemap_sampler_;
-  write[3].set = scene.indirect_light.descriptor;
+  write[3].set = view.indirect_light_set;
   write[3].binding = 3;
   write[3].descriptor_count = 1;
   write[3].type = RenderAPI::DescriptorType::kCombinedImageSampler;
   write[3].images = &brdf_info;
 
   RenderAPI::UpdateDescriptorSets(device_, 4, write);
+}
+
+View* Renderer::CreateView() {
+  View* view = new View();
+
+  view->objects_uniform = RenderAPI::CreateBuffer(
+      device_, RenderAPI::BufferUsageFlagBits::kStorageBuffer,
+      sizeof(ObjectsData) * kMaxInstances);
+
+  view->lights_uniform = RenderAPI::CreateBuffer(
+      device_, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(glm::vec3));
+
+  view->skybox_set = RenderUtils::BufferedDescriptorSet::Create(
+      device_, descriptor_set_pool_, cubemap_pipeline_.descriptor_layouts[0]);
+  view->indirect_light_set = RenderUtils::BufferedDescriptorSet::Create(
+      device_, descriptor_set_pool_, pbr_pipeline_.descriptor_layouts[1]);
+
+  RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
+                                    std::vector<RenderAPI::DescriptorSetLayout>(
+                                        1, pbr_pipeline_.descriptor_layouts[0]),
+                                    &view->objects_set);
+
+  RenderAPI::WriteDescriptorSet write[1];
+  RenderAPI::DescriptorBufferInfo instance_data_buffer_info;
+  instance_data_buffer_info.buffer = view->objects_uniform;
+  instance_data_buffer_info.range = sizeof(ObjectsData) * kMaxInstances;
+  write[0].set = view->objects_set;
+  write[0].binding = 0;
+  write[0].buffers = &instance_data_buffer_info;
+  write[0].descriptor_count = 1;
+  write[0].type = RenderAPI::DescriptorType::kStorageBuffer;
+  RenderAPI::UpdateDescriptorSets(device_, 1, write);
+
+  return view;
+}
+
+void Renderer::DestroyView(View** view) {
+  RenderAPI::DestroyBuffer((*view)->objects_uniform);
+  RenderAPI::DestroyBuffer((*view)->lights_uniform);
+
+  delete *view;
+  *view = nullptr;
 }

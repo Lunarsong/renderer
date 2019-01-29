@@ -8,12 +8,10 @@ struct IndirectLight {
   RenderAPI::ImageView reflections;
   RenderAPI::ImageView irradiance;
   RenderAPI::ImageView brdf;
-  RenderAPI::DescriptorSet descriptor = RenderAPI::kInvalidHandle;
 };
 
 struct Skybox {
   RenderAPI::ImageView sky;
-  RenderAPI::DescriptorSet descriptor = RenderAPI::kInvalidHandle;
 };
 
 struct Scene {
@@ -22,7 +20,14 @@ struct Scene {
   IndirectLight indirect_light;
   Skybox skybox;
 
-  RenderAPI::DescriptorSet descriptor = RenderAPI::kInvalidHandle;
+  inline void SetSkybox(RenderAPI::ImageView sky) { skybox.sky = sky; }
+  inline void SetIndirectLight(RenderAPI::ImageView irradiance,
+                               RenderAPI::ImageView reflections,
+                               RenderAPI::ImageView brdf) {
+    indirect_light.irradiance = irradiance;
+    indirect_light.reflections = reflections;
+    indirect_light.brdf = brdf;
+  }
 };
 
 inline void DestroyScene(RenderAPI::Device device, Scene& scene) {

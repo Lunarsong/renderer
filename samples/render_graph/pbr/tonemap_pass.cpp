@@ -63,7 +63,7 @@ TonemapPass CreateTonemapPass(RenderAPI::Device device) {
   tonemap.descriptor_set_pool =
       RenderAPI::CreateDescriptorSetPool(device, pool_info);
 
-  tonemap.descriptor_set = BufferedDescriptorSet::Create(
+  tonemap.descriptor_set = RenderUtils::BufferedDescriptorSet::Create(
       device, tonemap.descriptor_set_pool, tonemap.descriptor_layout);
 
   tonemap.device = device;

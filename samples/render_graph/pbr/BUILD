@@ -14,7 +14,7 @@ glslang(
 
 cc_binary(
   name = "pbr",
-  srcs = ["main.cpp", "util.h", "util.cpp", "tonemap_pass.h", "tonemap_pass.cpp"],
+  srcs = ["main.cpp", "util.h", "util.cpp", "tonemap_pass.h", "tonemap_pass.cpp", "shadow_pass.h", "shadow_pass.cpp"],
   copts = [],
   deps = [
     "@glfw//:glfw",
@@ -36,8 +36,8 @@ cc_binary(
 
 cc_library(
   name = "pbr_renderer",
-  srcs = ["renderer.cpp"],
-  hdrs = ["renderer.h", "model.h", "scene.h", "camera.h", "view.h"],
+  srcs = ["renderer.cpp", "vertex.cpp"],
+  hdrs = ["renderer.h", "model.h", "scene.h", "camera.h", "view.h", "vertex.h"],
   deps = [
     "@glm//:glm",
     "//:RenderAPI",

@@ -14,7 +14,7 @@ struct TonemapPass {
 
   RenderAPI::DescriptorSetLayout descriptor_layout;
   RenderAPI::DescriptorSetPool descriptor_set_pool;
-  BufferedDescriptorSet descriptor_set;
+  RenderUtils::BufferedDescriptorSet descriptor_set;
 
   RenderAPI::Sampler sampler;
 };

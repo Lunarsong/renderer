@@ -74,8 +74,9 @@ void Run() {
   RenderAPI::ImageView brdf_view;
   util::LoadTexture("samples/render_graph/pbr/data/brdf.ktx", device,
                     command_pool, brdf_image, brdf_view);
-  renderer->SetIndirectLight(scene, irradiance_view, prefilter_view, brdf_view);
-  renderer->SetSkybox(scene, cubemap_view);
+
+  scene.SetIndirectLight(irradiance_view, prefilter_view, brdf_view);
+  scene.SetSkybox(cubemap_view);
 
   TonemapPass tonemap = CreateTonemapPass(device);
 
@@ -85,6 +86,8 @@ void Run() {
   std::chrono::high_resolution_clock::time_point time =
       std::chrono::high_resolution_clock::now();
   float rotation = 0.0f;
+
+  View* view = renderer->CreateView();
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
 
@@ -99,7 +102,6 @@ void Run() {
 
     render_graph_.BeginFrame();
     RenderGraphResource output;
-    View view;
     render_graph_.AddPass(
         "Scene",
         [&](RenderGraphBuilder& builder) {
@@ -120,15 +122,15 @@ void Run() {
           desc.textures.push_back(std::move(depth_desc));
           output = builder.CreateRenderTarget(desc).textures[0];
 
-          view.viewport.height = depth_desc.height;
-          view.viewport.width = depth_desc.width;
-          view.camera.projection =
-              glm::perspectiveFov(glm::radians(45.0f), view.viewport.width,
-                                  view.viewport.height, 0.1f, 100.0f);
+          view->viewport.height = depth_desc.height;
+          view->viewport.width = depth_desc.width;
+          view->camera.projection =
+              glm::perspectiveFov(glm::radians(45.0f), view->viewport.width,
+                                  view->viewport.height, 0.1f, 100.0f);
 
-          view.camera.projection[1][1] *= -1.0f;
-          view.camera.view = camera.view;
-          view.camera.position = camera.position;
+          view->camera.projection[1][1] *= -1.0f;
+          view->camera.view = camera.view;
+          view->camera.position = camera.position;
         },
         [&](RenderContext* context, const Scope& scope) {
           renderer->Render(context->cmd, view, scene);
@@ -146,6 +148,7 @@ void Run() {
   DestroyScene(device, scene);
   delete renderer;
 
+  renderer->DestroyView(&view);
   DestroyTonemapPass(device, tonemap);
   RenderAPI::DestroyImageView(device, cubemap_view);
   RenderAPI::DestroyImage(cubemap_image);

@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <glm/glm.hpp>
+#include "vertex.h"
 
 Model CreateCubeModel(RenderAPI::Device device,
                       RenderAPI::CommandPool command_pool) {
@@ -128,13 +129,6 @@ std::vector<glm::vec2> CreateSphereUVs(unsigned int num_rings,
   return uvs;
 }
 
-struct Vertex {
-  float x, y, z;
-  float u, v;
-  float r, g, b;
-  float nx, ny, nz;
-};
-
 Model CreateSphereModel(RenderAPI::Device device,
                         RenderAPI::CommandPool command_pool) {
   std::vector<glm::vec3> positions;
@@ -147,19 +141,10 @@ Model CreateSphereModel(RenderAPI::Device device,
   Primitive primitive;
 
   for (size_t i = 0; i < vertices.size(); ++i) {
-    vertices[i].x = positions[i].x;
-    vertices[i].y = positions[i].y;
-    vertices[i].z = positions[i].z;
-
-    vertices[i].u = uvs[i].x;
-    vertices[i].v = uvs[i].y;
-
-    vertices[i].g = vertices[i].r = vertices[i].b = 1.0;
-
-    glm::vec3 normal = glm::normalize(positions[i]);
-    vertices[i].nx = normal.x;
-    vertices[i].ny = normal.y;
-    vertices[i].nz = normal.z;
+    vertices[i].position = positions[i];
+    vertices[i].uv = uvs[i];
+    vertices[i].color = glm::vec3(1.0f);
+    vertices[i].normal = glm::normalize(positions[i]);
   }
 
   primitive.vertex_buffer = RenderAPI::CreateBuffer(

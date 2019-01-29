@@ -1,5 +1,6 @@
 #include "../include/RenderUtils/buffered_descriptor_set.h"
 
+namespace RenderUtils {
 BufferedDescriptorSet BufferedDescriptorSet::Create(
     RenderAPI::Device device, RenderAPI::DescriptorSetPool pool,
     RenderAPI::DescriptorSetLayout layout) {
@@ -29,3 +30,4 @@ BufferedDescriptorSet::operator RenderAPI::DescriptorSet*() {
 BufferedDescriptorSet::operator const RenderAPI::DescriptorSet*() const {
   return &sets_[current_];
 }
+}  // namespace RenderUtils

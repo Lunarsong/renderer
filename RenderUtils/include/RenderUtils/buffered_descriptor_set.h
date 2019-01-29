@@ -1,5 +1,8 @@
+#pragma once
+
 #include <RenderAPI/RenderAPI.h>
 
+namespace RenderUtils {
 class BufferedDescriptorSet {
  public:
   static BufferedDescriptorSet Create(RenderAPI::Device device,
@@ -18,3 +21,4 @@ class BufferedDescriptorSet {
   RenderAPI::DescriptorSet sets_[kBufferCount];
   uint32_t current_ = 0;
 };
+}  // namespace RenderUtils
