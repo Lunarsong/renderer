@@ -1,6 +1,8 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
+#include <RenderUtils/buffered_descriptor_set.h>
+
 #include "render_graph/render_graph.h"
 
 struct TonemapPass {
@@ -10,13 +12,11 @@ struct TonemapPass {
   RenderAPI::PipelineLayout pipeline_layout;
   RenderAPI::RenderPass pass;
 
-  RenderAPI::DescriptorSet descriptor_layout;
+  RenderAPI::DescriptorSetLayout descriptor_layout;
   RenderAPI::DescriptorSetPool descriptor_set_pool;
-  RenderAPI::DescriptorSet descriptor_set;
+  BufferedDescriptorSet descriptor_set;
 
   RenderAPI::Sampler sampler;
-
-  RenderAPI::ImageView cached_hdr_texture_;
 };
 
 TonemapPass CreateTonemapPass(RenderAPI::Device device);

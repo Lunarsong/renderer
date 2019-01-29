@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include <RenderAPI/RenderAPI.h>
+#include <RenderUtils/buffered_descriptor_set.h>
 #include "render_graph/render_graph.h"
 #include "samples/common/util.h"
 
@@ -30,7 +31,7 @@ struct QuadPass {
 
   RenderAPI::DescriptorSetLayout descriptor_layout;
   RenderAPI::DescriptorSetPool descriptor_set_pool;
-  RenderAPI::DescriptorSet descriptor_set;
+  BufferedDescriptorSet descriptor_sets;
 
   RenderAPI::PipelineLayout pipeline_layout;
   RenderAPI::GraphicsPipeline pipeline;
@@ -45,29 +46,31 @@ void CompileQuadPass(QuadPass& pass, RenderAPI::Device device,
                              -0.5, 0.5,  0.0, 1.0, 0.0, 1.0, 0.0,  //
                              0.5,  -0.5, 1.0, 0.0, 1.0, 1.0, 1.0};
   pass.vertex_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferUsageFlagBits::kVertexBuffer, sizeof(float) * 4 * 7,
-      RenderAPI::MemoryUsage::kGpu);
+      device, RenderAPI::BufferUsageFlagBits::kVertexBuffer,
+      sizeof(float) * 4 * 7, RenderAPI::MemoryUsage::kGpu);
   RenderAPI::StageCopyDataToBuffer(command_pool, pass.vertex_buffer,
                                    quad.data(), sizeof(float) * 4 * 7);
 
   // Create the index buffer in GPU memory and copy the data.
   const uint32_t indices[] = {0, 1, 2, 3, 1, 0};
   pass.index_buffer = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferUsageFlagBits::kIndexBuffer, sizeof(uint32_t) * 6,
-      RenderAPI::MemoryUsage::kGpu);
+      device, RenderAPI::BufferUsageFlagBits::kIndexBuffer,
+      sizeof(uint32_t) * 6, RenderAPI::MemoryUsage::kGpu);
   RenderAPI::StageCopyDataToBuffer(command_pool, pass.index_buffer, indices,
                                    sizeof(uint32_t) * 6);
 
   float offsets[] = {0.5f, 0.0f, 0.0f, 0.0f};
   pass.uniform_buffer_offset = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer, sizeof(float) * 4);
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(float) * 4);
   memcpy(RenderAPI::MapBuffer(pass.uniform_buffer_offset), offsets,
          sizeof(float) * 4);
   RenderAPI::UnmapBuffer(pass.uniform_buffer_offset);
 
   float color[] = {0.5f, 0.5f, 0.5f, 1.0f};
   pass.uniform_buffer_color = RenderAPI::CreateBuffer(
-      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer, sizeof(float) * 4);
+      device, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
+      sizeof(float) * 4);
   memcpy(RenderAPI::MapBuffer(pass.uniform_buffer_color), color,
          sizeof(float) * 4);
   RenderAPI::UnmapBuffer(pass.uniform_buffer_color);
@@ -123,22 +126,20 @@ void CompileQuadPass(QuadPass& pass, RenderAPI::Device device,
 
   // Create the descriptor sets.
   RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info = {
-      {{RenderAPI::DescriptorType::kUniformBuffer, 2},
-       {RenderAPI::DescriptorType::kCombinedImageSampler, 1}},
-      /*max_sets=*/1};
+      {{RenderAPI::DescriptorType::kUniformBuffer, 6},
+       {RenderAPI::DescriptorType::kCombinedImageSampler, 3}},
+      /*max_sets=*/3};
   pass.descriptor_set_pool =
       RenderAPI::CreateDescriptorSetPool(device, pool_info);
 
-  RenderAPI::AllocateDescriptorSets(
-      pass.descriptor_set_pool,
-      std::vector<RenderAPI::DescriptorSetLayout>(1, pass.descriptor_layout),
-      &pass.descriptor_set);
+  pass.descriptor_sets = BufferedDescriptorSet::Create(
+      device, pass.descriptor_set_pool, pass.descriptor_layout);
 
   RenderAPI::WriteDescriptorSet write[3];
   RenderAPI::DescriptorBufferInfo offset_buffer;
   offset_buffer.buffer = pass.uniform_buffer_offset;
   offset_buffer.range = sizeof(float) * 4;
-  write[0].set = pass.descriptor_set;
+  write[0].set = pass.descriptor_sets;
   write[0].binding = 0;
   write[0].buffers = &offset_buffer;
   write[0].descriptor_count = 1;
@@ -147,7 +148,7 @@ void CompileQuadPass(QuadPass& pass, RenderAPI::Device device,
   RenderAPI::DescriptorBufferInfo color_buffer;
   color_buffer.buffer = pass.uniform_buffer_color;
   color_buffer.range = sizeof(float) * 4;
-  write[1].set = pass.descriptor_set;
+  write[1].set = pass.descriptor_sets;
   write[1].binding = 1;
   write[1].buffers = &color_buffer;
   write[1].descriptor_count = 1;
@@ -156,7 +157,7 @@ void CompileQuadPass(QuadPass& pass, RenderAPI::Device device,
   RenderAPI::DescriptorImageInfo image_info;
   image_info.image_view = pass.image_view;
   image_info.sampler = pass.sampler;
-  write[2].set = pass.descriptor_set;
+  write[2].set = pass.descriptor_sets;
   write[2].binding = 2;
   write[2].descriptor_count = 1;
   write[2].type = RenderAPI::DescriptorType::kCombinedImageSampler;
@@ -173,7 +174,7 @@ void RenderQuad(RenderContext* context, QuadPass& pass) {
   RenderAPI::CmdBindIndexBuffer(cmd, pass.index_buffer,
                                 RenderAPI::IndexType::kUInt32);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pass.pipeline_layout, 0, 1,
-                                   &pass.descriptor_set);
+                                   pass.descriptor_sets);
   RenderAPI::CmdDrawIndexed(cmd, 6);
 }
 
@@ -198,11 +199,12 @@ void DestroyQuadPass(RenderAPI::Device device, QuadPass& pass) {
 
 void UpdateDescriptorSetTexture(RenderAPI::Device device, QuadPass& pass,
                                 RenderAPI::ImageView image_view) {
+  ++pass.descriptor_sets;
   RenderAPI::WriteDescriptorSet write[3];
   RenderAPI::DescriptorBufferInfo offset_buffer;
   offset_buffer.buffer = pass.uniform_buffer_offset;
   offset_buffer.range = sizeof(float) * 4;
-  write[0].set = pass.descriptor_set;
+  write[0].set = pass.descriptor_sets;
   write[0].binding = 0;
   write[0].buffers = &offset_buffer;
   write[0].descriptor_count = 1;
@@ -211,7 +213,7 @@ void UpdateDescriptorSetTexture(RenderAPI::Device device, QuadPass& pass,
   RenderAPI::DescriptorBufferInfo color_buffer;
   color_buffer.buffer = pass.uniform_buffer_color;
   color_buffer.range = sizeof(float) * 4;
-  write[1].set = pass.descriptor_set;
+  write[1].set = pass.descriptor_sets;
   write[1].binding = 1;
   write[1].buffers = &color_buffer;
   write[1].descriptor_count = 1;
@@ -220,7 +222,7 @@ void UpdateDescriptorSetTexture(RenderAPI::Device device, QuadPass& pass,
   RenderAPI::DescriptorImageInfo image_info;
   image_info.image_view = image_view;
   image_info.sampler = pass.sampler;
-  write[2].set = pass.descriptor_set;
+  write[2].set = pass.descriptor_sets;
   write[2].binding = 2;
   write[2].descriptor_count = 1;
   write[2].type = RenderAPI::DescriptorType::kCombinedImageSampler;

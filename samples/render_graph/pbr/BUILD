@@ -20,6 +20,7 @@ cc_binary(
     "@glfw//:glfw",
     "@glm//:glm",
     "//:RenderAPI",
+    "//RenderUtils",
     "//samples/common",
     "//render_graph:render_graph",
     ":pbr_renderer",
@@ -40,5 +41,6 @@ cc_library(
   deps = [
     "@glm//:glm",
     "//:RenderAPI",
+    "//RenderUtils",
   ],
 )

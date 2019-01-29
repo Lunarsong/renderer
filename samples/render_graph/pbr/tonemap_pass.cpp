@@ -58,15 +58,13 @@ TonemapPass CreateTonemapPass(RenderAPI::Device device) {
 
   // Create the descriptor set pool.
   RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info = {
-      {{RenderAPI::DescriptorType::kCombinedImageSampler, 1}},
+      {{RenderAPI::DescriptorType::kCombinedImageSampler, 3}},
       /*max_sets=*/3};
   tonemap.descriptor_set_pool =
       RenderAPI::CreateDescriptorSetPool(device, pool_info);
 
-  RenderAPI::AllocateDescriptorSets(
-      tonemap.descriptor_set_pool,
-      std::vector<RenderAPI::DescriptorSetLayout>(1, tonemap.descriptor_layout),
-      &tonemap.descriptor_set);
+  tonemap.descriptor_set = BufferedDescriptorSet::Create(
+      device, tonemap.descriptor_set_pool, tonemap.descriptor_layout);
 
   tonemap.device = device;
   return tonemap;
@@ -95,19 +93,19 @@ RenderGraphResource AddTonemapPass(RenderAPI::Device device,
       },
       [=](RenderContext* context, const Scope& scope) {
         RenderAPI::ImageView hdr_texture = scope.GetTexture(texture);
-        if (hdr_texture != tonemap->cached_hdr_texture_) {
-          tonemap->cached_hdr_texture_ = hdr_texture;
-          RenderAPI::WriteDescriptorSet write[1];
-          RenderAPI::DescriptorImageInfo image_info;
-          image_info.image_view = hdr_texture;
-          image_info.sampler = tonemap->sampler;
-          write[0].set = tonemap->descriptor_set;
-          write[0].binding = 0;
-          write[0].descriptor_count = 1;
-          write[0].type = RenderAPI::DescriptorType::kCombinedImageSampler;
-          write[0].images = &image_info;
-          RenderAPI::UpdateDescriptorSets(tonemap->device, 1, write);
-        }
+
+        // Update the descriptor set.
+        RenderAPI::WriteDescriptorSet write[1];
+        RenderAPI::DescriptorImageInfo image_info;
+        image_info.image_view = hdr_texture;
+        image_info.sampler = tonemap->sampler;
+        write[0].set = ++tonemap->descriptor_set;
+        write[0].binding = 0;
+        write[0].descriptor_count = 1;
+        write[0].type = RenderAPI::DescriptorType::kCombinedImageSampler;
+        write[0].images = &image_info;
+        RenderAPI::UpdateDescriptorSets(tonemap->device, 1, write);
+
         RenderAPI::CmdBindPipeline(context->cmd, tonemap->pipeline);
 
         RenderAPI::Rect2D scissor = {
@@ -121,7 +119,7 @@ RenderGraphResource AddTonemapPass(RenderAPI::Device device,
 
         RenderAPI::CmdBindDescriptorSets(context->cmd, 0,
                                          tonemap->pipeline_layout, 0, 1,
-                                         &tonemap->descriptor_set);
+                                         tonemap->descriptor_set);
         RenderAPI::CmdDraw(context->cmd, 3);
       });
   return output;

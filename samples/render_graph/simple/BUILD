@@ -16,6 +16,7 @@ cc_binary(
     "@glfw//:glfw",
     "@vulkan//:vulkan",
     "//:RenderAPI",
+    "//RenderUtils",
     "//samples/common",
     "//render_graph:render_graph",
   ],
