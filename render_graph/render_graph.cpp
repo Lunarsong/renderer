@@ -145,6 +145,7 @@ RenderAPI::Semaphore RenderGraph::ExecuteRenderPasses(
         RenderAPI::CmdBeginRenderPass(
             context.cmd, RenderAPI::BeginRenderPassInfo(
                              context.pass, context.framebuffer,
+                             render_pass.framebuffer.render_area,
                              static_cast<uint32_t>(
                                  render_pass.framebuffer.clear_values.size()),
                              render_pass.framebuffer.clear_values.data()));

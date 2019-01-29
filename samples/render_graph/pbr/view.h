@@ -11,12 +11,15 @@ struct View {
 
   // Lights
   RenderAPI::Buffer lights_uniform;
-  RenderUtils::BufferedDescriptorSet indirect_light_set;
+  RenderUtils::BufferedDescriptorSet light_set;
 
   // Skybox
   RenderUtils::BufferedDescriptorSet skybox_set;
 
   // Objects
-  RenderAPI::DescriptorSet objects_set = RenderAPI::kInvalidHandle;
+  RenderAPI::DescriptorSet objects_set;
   RenderAPI::Buffer objects_uniform;
+
+  // Shadow pass
+  RenderAPI::Buffer shadow_transforms_uniform;
 };

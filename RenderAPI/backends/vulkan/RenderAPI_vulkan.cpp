@@ -672,8 +672,8 @@ void CmdBeginRenderPass(CommandBuffer buffer_handle,
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   renderPassInfo.renderPass = render_passes_[info.pass].pass;
   renderPassInfo.framebuffer = framebuffers_[info.framebuffer].buffer;
-  renderPassInfo.renderArea.offset = {0, 0};
-  renderPassInfo.renderArea.extent = {1920, 1200};
+  renderPassInfo.renderArea =
+      *reinterpret_cast<const VkRect2D*>(&info.render_area);
   renderPassInfo.clearValueCount = info.clear_values_count;
   renderPassInfo.pClearValues =
       reinterpret_cast<const VkClearValue*>(info.clear_values);

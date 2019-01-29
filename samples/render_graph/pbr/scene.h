@@ -1,8 +1,13 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
+#include <glm/glm.hpp>
 #include <vector>
 #include "model.h"
+
+struct DirectionalLight {
+  glm::vec3 direction = glm::normalize(glm::vec3(-1.0f, -1.0f, 1.0f));
+};
 
 struct IndirectLight {
   RenderAPI::ImageView reflections;
@@ -17,6 +22,7 @@ struct Skybox {
 struct Scene {
   std::vector<Model> models;
 
+  DirectionalLight directional_light;
   IndirectLight indirect_light;
   Skybox skybox;
 

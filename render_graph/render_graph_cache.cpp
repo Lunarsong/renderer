@@ -177,6 +177,7 @@ const RenderGraphFramebuffer& RenderGraphCache::CreateTransientFramebuffer(
   for (const auto& texture_desc : info.textures) {
     buffer.resources.clear_values.emplace_back(texture_desc.clear_values);
   }
+  buffer.resources.render_area = {0, 0, fb_info.width, fb_info.height};
 
   buffer.info = info;
   transient_buffers_.emplace_back(std::move(buffer));

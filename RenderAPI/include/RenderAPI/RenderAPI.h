@@ -230,14 +230,16 @@ struct ClearValue {
 struct BeginRenderPassInfo {
   RenderPass pass;
   Framebuffer framebuffer;
+  Rect2D render_area;
   uint32_t clear_values_count = 0;
   const ClearValue* clear_values = nullptr;
 
   BeginRenderPassInfo(RenderPass pass, Framebuffer framebuffer,
-                      uint32_t clear_values_count = 0,
+                      Rect2D render_area, uint32_t clear_values_count = 0,
                       const ClearValue* clear_values = nullptr)
       : pass(pass),
         framebuffer(framebuffer),
+        render_area(render_area),
         clear_values_count(clear_values_count),
         clear_values(clear_values) {}
 };

@@ -14,6 +14,7 @@ struct RenderGraphFramebuffer {
   RenderAPI::RenderPass pass;
   RenderAPI::Framebuffer framebuffer;
 
+  RenderAPI::Rect2D render_area;
   std::vector<RenderAPI::ClearValue> clear_values;
 };
 

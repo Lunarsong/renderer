@@ -78,6 +78,11 @@ struct Offset2D {
 struct Rect2D {
   Offset2D offset;
   Extent2D extent;
+
+  Rect2D() = default;
+  Rect2D(Offset2D offset, Extent2D extent) : offset(offset), extent(extent) {}
+  Rect2D(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+      : offset(x, y), extent(width, height) {}
 };
 
 struct ViewportState {

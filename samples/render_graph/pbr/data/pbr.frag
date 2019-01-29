@@ -6,16 +6,20 @@ layout(location = 0) in vec3 vWorldPosition;
 layout(location = 1) in vec3 vColor;
 layout(location = 2) in vec2 vTexCoords;
 layout(location = 3) in vec3 vNormal;
+layout(location = 4) in vec4 vShadowCoord;
 
 layout(location = 0) out vec4 outColor;
 
 layout(set = 1, binding = 0) uniform GlobalData {
     vec3 uCameraPosition;
+		vec3 uLightDirection;
 };
 
 layout(set = 1, binding = 1) uniform samplerCube uIrradianceMap;
 layout(set = 1, binding = 2) uniform samplerCube uPrefilteredMap;
 layout(set = 1, binding = 3) uniform sampler2D uBrdfLookupTable;
+// Shadow map.
+layout (set = 1, binding = 4) uniform sampler2D uShadowMapSampler;
 
 layout(set = 2, binding = 0) uniform sampler2D uAlbedoMap;
 layout(set = 2, binding = 1) uniform sampler2D uNormal;
@@ -127,10 +131,22 @@ vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, floa
 	return color;
 }
 
+float textureProj(vec4 P, vec2 off)
+{
+	float shadow = 1.0;
+	vec4 shadowCoord = P / P.w;
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
+	{
+		float dist = texture( uShadowMapSampler, shadowCoord.st + off ).r;
+		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z )
+		{
+			shadow = 0.0;
+		}
+	}
+	return shadow;
+}
 
 void main() {
-    vec3 light_pos = vec3(-1.0, 1.0, -1.0);
-
 	vec3 base_color = SRGBToLinear(vec3(253.0, 181.0, 21.0) / vec3(255.0));
     float metallic = 1.0;
 	float roughness = 0.25;
@@ -154,8 +170,8 @@ void main() {
 	// Per light:
 	{
 		// Calculate per-light radiance
-		vec3 L = normalize(light_pos - vWorldPosition);
-		Lo = SpecularContribution(base_color, L, V, N, F0, metallic, roughness);
+		vec3 direction_to_light = -uLightDirection; // normalize(light_pos - vWorldPosition);
+		Lo = SpecularContribution(base_color, direction_to_light, V, N, F0, metallic, roughness) * textureProj(vShadowCoord / vShadowCoord.w, vec2(0.0));
 	}
 
 	// IBL.
@@ -177,5 +193,5 @@ void main() {
 	vec3 ambient = (kD * diffuse + specular) * ambient_occlusion;
 	vec3 color = ambient + Lo;
 
-    outColor = vec4(color, 1.0);
+	outColor = vec4(color, 1.0);
 }

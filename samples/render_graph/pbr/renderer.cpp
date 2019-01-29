@@ -17,6 +17,11 @@ struct ObjectsData {
   glm::mat4 uMatNormalsMatrix;
 };
 
+struct LightDataGPU {
+  alignas(16) glm::vec3 uCameraPosition;
+  alignas(16) glm::vec3 uLightDirection;
+};
+
 std::vector<char> ReadFile(const std::string& filename) {
   std::ifstream file(filename, std::ios::ate | std::ios::binary);
   if (!file.is_open()) {
@@ -235,13 +240,17 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
       {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
        RenderAPI::ShaderStageFlagBits::kFragmentBit},
       {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
+       RenderAPI::ShaderStageFlagBits::kFragmentBit},
+      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
        RenderAPI::ShaderStageFlagBits::kFragmentBit}};
   pbr_pipeline_.descriptor_layouts.emplace_back(
       RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info));
 
   // Create a pipeline.
   pbr_pipeline_.pipeline_layout = RenderAPI::CreatePipelineLayout(
-      device, {{pbr_pipeline_.descriptor_layouts}});
+      device,
+      {{pbr_pipeline_.descriptor_layouts},
+       {{RenderAPI::ShaderStageFlagBits::kVertexBit, 0, sizeof(glm::mat4)}}});
   pbr_pipeline_.pipeline =
       CreatePipeline(device, render_pass_, pbr_pipeline_.pipeline_layout);
 
@@ -249,15 +258,29 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info = {
       {{RenderAPI::DescriptorType::kStorageBuffer, 1},
        {RenderAPI::DescriptorType::kUniformBuffer, 3},
-       {RenderAPI::DescriptorType::kCombinedImageSampler, 4 * 3}},
+       {RenderAPI::DescriptorType::kCombinedImageSampler, 5 * 3}},
       /*max_sets=*/7};
   descriptor_set_pool_ = RenderAPI::CreateDescriptorSetPool(device, pool_info);
+
+  // Shadow sampler.
+  sampler_info.min_filter = RenderAPI::SamplerFilter::kNearest;
+  sampler_info.mag_filter = RenderAPI::SamplerFilter::kNearest;
+  sampler_info.max_lod = 1.0f;
+  shadow_sampler_ = RenderAPI::CreateSampler(device, sampler_info);
+
+  shadow_pass_ = ShadowPass::Create(device);
 }
 
 Renderer::~Renderer() {
+  ShadowPass::Destroy(device_, shadow_pass_);
   if (cubemap_sampler_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroySampler(device_, cubemap_sampler_);
     cubemap_sampler_ = RenderAPI::kInvalidHandle;
+  }
+
+  if (shadow_sampler_ != RenderAPI::kInvalidHandle) {
+    RenderAPI::DestroySampler(device_, shadow_sampler_);
+    shadow_sampler_ = RenderAPI::kInvalidHandle;
   }
 
   if (descriptor_set_pool_ != RenderAPI::kInvalidHandle) {
@@ -288,6 +311,44 @@ Renderer::~Renderer() {
   }
 }
 
+RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
+                                     const Scene* scene) {
+  RenderGraphResource shadow_texture =
+      ShadowPass::AddPass(&shadow_pass_, device_, render_graph, view, scene);
+
+  RenderGraphResource output;
+  render_graph.AddPass(
+      "Scene",
+      [&](RenderGraphBuilder& builder) {
+        builder.Read(shadow_texture);
+
+        RenderGraphFramebufferDesc desc;
+        desc.textures.push_back(render_graph.GetSwapChainDescription());
+        desc.textures[0].format =
+            RenderAPI::TextureFormat::kR16G16B16A16_SFLOAT;
+        desc.textures[0].layout =
+            RenderAPI::ImageLayout::kShaderReadOnlyOptimal;
+        RenderGraphTextureDesc depth_desc;
+        depth_desc.format = RenderAPI::TextureFormat::kD32_SFLOAT;
+        depth_desc.width = desc.textures[0].width;
+        depth_desc.height = desc.textures[0].height;
+        depth_desc.load_op = RenderAPI::AttachmentLoadOp::kClear;
+        depth_desc.layout =
+            RenderAPI::ImageLayout::kDepthStencilAttachmentOptimal;
+        depth_desc.clear_values.depth_stencil.depth = 1.0f;
+        desc.textures.push_back(std::move(depth_desc));
+        output = builder.CreateRenderTarget(desc).textures[0];
+      },
+      [this, view, scene, shadow_texture](RenderContext* context,
+                                          const Scope& scope) {
+        SetLightData(*view, scene->indirect_light,
+                     scope.GetTexture(shadow_texture));
+        Render(context->cmd, view, *scene);
+      });
+
+  return output;
+}
+
 void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
                       const Scene& scene) {
   glm::mat4 cubemap_mvp = view->camera.view;
@@ -313,18 +374,29 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
   RenderAPI::CmdDrawIndexed(cmd, 36, 1, 0, 0, 0);
 
   // Draw the scene.
-  SetIndirectLight(*view, scene.indirect_light);
   RenderAPI::CmdBindPipeline(cmd, pbr_pipeline_.pipeline);
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
   RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 0, 1,
                                    &view->objects_set);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 1, 1,
-                                   view->indirect_light_set);
+                                   view->light_set);
 
-  glm::vec3* lights_buffer =
-      reinterpret_cast<glm::vec3*>(RenderAPI::MapBuffer(view->lights_uniform));
-  *lights_buffer = view->camera.position;
+  // Bind the shadow map matrix.
+  glm::mat4 shadow_projection =
+      glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 30.0f);
+  const glm::mat4 shadow_view =
+      glm::lookAt(-scene.directional_light.direction * 20.0f, glm::vec3(0.0f),
+                  glm::vec3(0.0f, 1.0f, 0.0f));
+  const glm::mat4 shadow_view_projection = shadow_projection * shadow_view;
+  RenderAPI::CmdPushConstants(cmd, pbr_pipeline_.pipeline_layout,
+                              RenderAPI::ShaderStageFlagBits::kVertexBit, 0,
+                              sizeof(glm::mat4), &shadow_view_projection);
+
+  LightDataGPU* lights_buffer = reinterpret_cast<LightDataGPU*>(
+      RenderAPI::MapBuffer(view->lights_uniform));
+  lights_buffer->uCameraPosition = view->camera.position;
+  lights_buffer->uLightDirection = scene.directional_light.direction;
   RenderAPI::UnmapBuffer(view->lights_uniform);
 
   ObjectsData* objects_buffer = reinterpret_cast<ObjectsData*>(
@@ -367,14 +439,15 @@ void Renderer::SetSkybox(View& view, const Skybox& skybox) {
   RenderAPI::UpdateDescriptorSets(device_, 1, write);
 }
 
-void Renderer::SetIndirectLight(View& view, const IndirectLight& light) {
-  ++view.indirect_light_set;
+void Renderer::SetLightData(View& view, const IndirectLight& light,
+                            RenderAPI::ImageView shadow_map_texture) {
+  ++view.light_set;
 
-  RenderAPI::WriteDescriptorSet write[4];
+  RenderAPI::WriteDescriptorSet write[5];
   RenderAPI::DescriptorBufferInfo buffer_info;
   buffer_info.buffer = view.lights_uniform;
   buffer_info.range = sizeof(glm::vec3);
-  write[0].set = view.indirect_light_set;
+  write[0].set = view.light_set;
   write[0].binding = 0;
   write[0].buffers = &buffer_info;
   write[0].descriptor_count = 1;
@@ -383,7 +456,7 @@ void Renderer::SetIndirectLight(View& view, const IndirectLight& light) {
   RenderAPI::DescriptorImageInfo irradiance_info;
   irradiance_info.image_view = light.irradiance;
   irradiance_info.sampler = cubemap_sampler_;
-  write[1].set = view.indirect_light_set;
+  write[1].set = view.light_set;
   write[1].binding = 1;
   write[1].descriptor_count = 1;
   write[1].type = RenderAPI::DescriptorType::kCombinedImageSampler;
@@ -392,7 +465,7 @@ void Renderer::SetIndirectLight(View& view, const IndirectLight& light) {
   RenderAPI::DescriptorImageInfo reflections_info;
   reflections_info.image_view = light.reflections;
   reflections_info.sampler = cubemap_sampler_;
-  write[2].set = view.indirect_light_set;
+  write[2].set = view.light_set;
   write[2].binding = 2;
   write[2].descriptor_count = 1;
   write[2].type = RenderAPI::DescriptorType::kCombinedImageSampler;
@@ -401,13 +474,22 @@ void Renderer::SetIndirectLight(View& view, const IndirectLight& light) {
   RenderAPI::DescriptorImageInfo brdf_info;
   brdf_info.image_view = light.brdf;
   brdf_info.sampler = cubemap_sampler_;
-  write[3].set = view.indirect_light_set;
+  write[3].set = view.light_set;
   write[3].binding = 3;
   write[3].descriptor_count = 1;
   write[3].type = RenderAPI::DescriptorType::kCombinedImageSampler;
   write[3].images = &brdf_info;
 
-  RenderAPI::UpdateDescriptorSets(device_, 4, write);
+  RenderAPI::DescriptorImageInfo shadowmap_info;
+  shadowmap_info.image_view = shadow_map_texture;
+  shadowmap_info.sampler = shadow_sampler_;
+  write[4].set = view.light_set;
+  write[4].binding = 4;
+  write[4].descriptor_count = 1;
+  write[4].type = RenderAPI::DescriptorType::kCombinedImageSampler;
+  write[4].images = &shadowmap_info;
+
+  RenderAPI::UpdateDescriptorSets(device_, 5, write);
 }
 
 View* Renderer::CreateView() {
@@ -423,7 +505,7 @@ View* Renderer::CreateView() {
 
   view->skybox_set = RenderUtils::BufferedDescriptorSet::Create(
       device_, descriptor_set_pool_, cubemap_pipeline_.descriptor_layouts[0]);
-  view->indirect_light_set = RenderUtils::BufferedDescriptorSet::Create(
+  view->light_set = RenderUtils::BufferedDescriptorSet::Create(
       device_, descriptor_set_pool_, pbr_pipeline_.descriptor_layouts[1]);
 
   RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,

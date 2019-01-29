@@ -1,7 +1,9 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
+#include "render_graph/render_graph.h"
 #include "scene.h"
+#include "shadow_pass.h"
 #include "view.h"
 
 struct RendererPipeline {
@@ -15,7 +17,8 @@ class Renderer {
   Renderer(RenderAPI::Device device);
   ~Renderer();
 
-  void Render(RenderAPI::CommandBuffer buffer, View* view, const Scene& scene);
+  RenderGraphResource Render(RenderGraph& render_graph, View* view,
+                             const Scene* scene);
 
   View* CreateView();
   void DestroyView(View** view);
@@ -36,6 +39,13 @@ class Renderer {
   RenderAPI::Buffer cubemap_vertex_buffer_ = RenderAPI::kInvalidHandle;
   RenderAPI::Buffer cubemap_index_buffer_ = RenderAPI::kInvalidHandle;
 
+  // Shadow mapping.
+  RenderAPI::Sampler shadow_sampler_ = RenderAPI::kInvalidHandle;
+  ShadowPass shadow_pass_;
+
   void SetSkybox(View& view, const Skybox& skybox);
-  void SetIndirectLight(View& view, const IndirectLight& light);
+  void SetLightData(View& view, const IndirectLight& light,
+                    RenderAPI::ImageView shadow_map_texture);
+
+  void Render(RenderAPI::CommandBuffer buffer, View* view, const Scene& scene);
 };

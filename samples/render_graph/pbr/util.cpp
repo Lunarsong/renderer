@@ -167,3 +167,52 @@ Model CreateSphereModel(RenderAPI::Device device,
   model.primitives.emplace_back(std::move(primitive));
   return model;
 }
+
+Model CreatePlaneModel(RenderAPI::Device device,
+                       RenderAPI::CommandPool command_pool) {
+  Model model;
+  Primitive primitive;
+  Vertex vertices[] = {{
+                           glm::vec3(-20.0f, -2.0f, -20.0f),
+                           glm::vec2(0.0f, 0.0f),
+                           glm::vec3(1.0f, 1.0f, 1.0f),
+                           glm::vec3(0.0f, 1.0f, 0.0f),
+                       },
+                       {
+                           glm::vec3(20.0f, -2.0f, -20.0f),
+                           glm::vec2(1.0f, 0.0f),
+                           glm::vec3(1.0f, 1.0f, 1.0f),
+                           glm::vec3(0.0f, 1.0f, 0.0f),
+                       },
+                       {
+                           glm::vec3(-20.0f, -2.0f, 20.0f),
+                           glm::vec2(0.0f, 1.0f),
+                           glm::vec3(1.0f, 1.0f, 1.0f),
+                           glm::vec3(0.0f, 1.0f, 0.0f),
+                       },
+                       {
+                           glm::vec3(20.0f, -2.0f, 20.0f),
+                           glm::vec2(1.0f, 1.0f),
+                           glm::vec3(1.0f, 1.0f, 1.0f),
+                           glm::vec3(0.0f, 1.0f, 0.0f),
+                       }};
+
+  primitive.vertex_buffer = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferUsageFlagBits::kVertexBuffer, sizeof(Vertex) * 4,
+      RenderAPI::MemoryUsage::kGpu);
+  RenderAPI::StageCopyDataToBuffer(command_pool, primitive.vertex_buffer,
+                                   vertices, sizeof(Vertex) * 4);
+
+  // Create the index buffer in GPU memory and copy the data.
+  uint32_t indices[] = {0, 1, 3, 3, 2, 0};
+  primitive.index_buffer = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferUsageFlagBits::kIndexBuffer,
+      sizeof(uint32_t) * 6, RenderAPI::MemoryUsage::kGpu);
+  RenderAPI::StageCopyDataToBuffer(command_pool, primitive.index_buffer,
+                                   indices, sizeof(uint32_t) * 6);
+
+  primitive.num_primitives = 6;
+
+  model.primitives.emplace_back(std::move(primitive));
+  return model;
+}

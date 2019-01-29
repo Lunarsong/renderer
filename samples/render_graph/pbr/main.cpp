@@ -61,6 +61,7 @@ void Run() {
   Renderer* renderer = new Renderer(device);
   Scene scene;
   scene.models.emplace_back(CreateSphereModel(device, command_pool));
+  scene.models.emplace_back(CreatePlaneModel(device, command_pool));
 
   RenderAPI::Image irradiance_image;
   RenderAPI::ImageView irradiance_view;
@@ -100,42 +101,20 @@ void Run() {
     rotation += static_cast<float>(delta_seconds);
     UpdateCameraController(camera, window, delta_seconds);
 
+    // Update the camera view.
+    view->viewport.width = render_graph_.GetSwapChainDescription().width;
+    view->viewport.height = render_graph_.GetSwapChainDescription().height;
+    view->camera.projection =
+        glm::perspectiveFov(glm::radians(45.0f), view->viewport.width,
+                            view->viewport.height, 0.1f, 100.0f);
+    view->camera.projection[1][1] *= -1.0f;
+    view->camera.view = camera.view;
+    view->camera.position = camera.position;
+
+    // Render.
     render_graph_.BeginFrame();
     RenderGraphResource output;
-    render_graph_.AddPass(
-        "Scene",
-        [&](RenderGraphBuilder& builder) {
-          RenderGraphFramebufferDesc desc;
-          desc.textures.push_back(render_graph_.GetSwapChainDescription());
-          desc.textures[0].format =
-              RenderAPI::TextureFormat::kR16G16B16A16_SFLOAT;
-          desc.textures[0].layout =
-              RenderAPI::ImageLayout::kShaderReadOnlyOptimal;
-          RenderGraphTextureDesc depth_desc;
-          depth_desc.format = RenderAPI::TextureFormat::kD32_SFLOAT;
-          depth_desc.width = desc.textures[0].width;
-          depth_desc.height = desc.textures[0].height;
-          depth_desc.load_op = RenderAPI::AttachmentLoadOp::kClear;
-          depth_desc.layout =
-              RenderAPI::ImageLayout::kDepthStencilAttachmentOptimal;
-          depth_desc.clear_values.depth_stencil.depth = 1.0f;
-          desc.textures.push_back(std::move(depth_desc));
-          output = builder.CreateRenderTarget(desc).textures[0];
-
-          view->viewport.height = depth_desc.height;
-          view->viewport.width = depth_desc.width;
-          view->camera.projection =
-              glm::perspectiveFov(glm::radians(45.0f), view->viewport.width,
-                                  view->viewport.height, 0.1f, 100.0f);
-
-          view->camera.projection[1][1] *= -1.0f;
-          view->camera.view = camera.view;
-          view->camera.position = camera.position;
-        },
-        [&](RenderContext* context, const Scope& scope) {
-          renderer->Render(context->cmd, view, scene);
-        });
-
+    output = renderer->Render(render_graph_, view, &scene);
     output = AddTonemapPass(device, render_graph_, &tonemap,
                             /* use previous output as input */ output);
 
