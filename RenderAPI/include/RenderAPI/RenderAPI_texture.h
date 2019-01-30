@@ -468,6 +468,8 @@ struct SamplerCreateInfo {
   SamplerAddressMode address_mode_w = SamplerAddressMode::kClampToEdge;
   float min_lod = 0.0f;
   float max_lod = 1.0f;
+  bool compare_enable = false;
+  CompareOp compare_op = CompareOp::kAlways;
 };
 
 }  // namespace RenderAPI

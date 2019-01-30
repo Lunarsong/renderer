@@ -7,5 +7,6 @@ cc_library(
     defines = [
         "GLM_FORCE_RADIANS",
         "GLM_FORCE_LEFT_HANDED",
+        "GLM_FORCE_DEPTH_ZERO_TO_ONE",
     ],
 )

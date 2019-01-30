@@ -19,7 +19,7 @@ layout(set = 1, binding = 1) uniform samplerCube uIrradianceMap;
 layout(set = 1, binding = 2) uniform samplerCube uPrefilteredMap;
 layout(set = 1, binding = 3) uniform sampler2D uBrdfLookupTable;
 // Shadow map.
-layout (set = 1, binding = 4) uniform sampler2D uShadowMapSampler;
+layout (set = 1, binding = 4) uniform sampler2DShadow uShadowMapSampler;
 
 layout(set = 2, binding = 0) uniform sampler2D uAlbedoMap;
 layout(set = 2, binding = 1) uniform sampler2D uNormal;
@@ -131,28 +131,44 @@ vec3 SpecularContribution(vec3 base_color, vec3 L, vec3 V, vec3 N, vec3 F0, floa
 	return color;
 }
 
-float textureProj(vec4 P, vec2 off)
-{
-	float shadow = 1.0;
-	vec4 shadowCoord = P / P.w;
-	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
-	{
-		float dist = texture( uShadowMapSampler, shadowCoord.st + off ).r;
-		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z )
-		{
-			shadow = 0.0;
+float TextureProj(vec4 shadow_coord, vec2 off) {
+	float shadow_epsilon = 0.005;
+	return texture(uShadowMapSampler, vec3(shadow_coord.st + off, shadow_coord.z + shadow_epsilon)).r;
+}
+
+float FilterPCF(vec4 sc) {
+	ivec2 texture_size = textureSize(uShadowMapSampler, 0);
+	float scale = 1.5;
+	float dx = scale * 1.0 / float(texture_size.x);
+	float dy = scale * 1.0 / float(texture_size.y);
+
+	float shadow_factor = 0.0;
+	int count = 0;
+	int range = 1;
+	
+	for (int x = -range; x <= range; x++) {
+		for (int y = -range; y <= range; y++) {
+			shadow_factor += TextureProj(sc, vec2(dx*x, dy*y));
+			count++;
 		}
+	
 	}
-	return shadow;
+	return shadow_factor / count;
+}
+
+float CalculateShadowTerm() {
+	vec4 shadow_coord = vShadowCoord / vShadowCoord.w;
+	
+	return FilterPCF(shadow_coord);
 }
 
 void main() {
 	vec3 base_color = SRGBToLinear(vec3(253.0, 181.0, 21.0) / vec3(255.0));
-    float metallic = 1.0;
+	float metallic = 1.0;
 	float roughness = 0.25;
-	float ambient_occlusion = 1.0f;
+	float ambient_occlusion = 0.8f;
 
-    vec3 N = normalize(vNormal);
+	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCameraPosition - vWorldPosition);
 	vec3 R = -normalize(reflect(V, N));
 
@@ -162,8 +178,8 @@ void main() {
 	}*/
 
 	// Calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
-    // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow).
-    vec3 F0 = vec3(0.04);
+	// of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow).
+	vec3 F0 = vec3(0.04);
 	F0 = mix(F0, base_color, metallic);
 
 	vec3 Lo = vec3(0.0);
@@ -171,7 +187,11 @@ void main() {
 	{
 		// Calculate per-light radiance
 		vec3 direction_to_light = -uLightDirection; // normalize(light_pos - vWorldPosition);
-		Lo = SpecularContribution(base_color, direction_to_light, V, N, F0, metallic, roughness) * textureProj(vShadowCoord / vShadowCoord.w, vec2(0.0));
+		Lo = SpecularContribution(base_color, direction_to_light, V, N, F0, metallic, roughness);
+
+		// Gather if this fragment is visible from the light's perspective.
+		float shadow_map_term = CalculateShadowTerm();
+		Lo *= shadow_map_term;
 	}
 
 	// IBL.
@@ -185,7 +205,7 @@ void main() {
 	vec3 F = FresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
 
 	// Specular reflectance.
-	vec3 specular = reflection * (F * brdf.x + brdf.y);;
+	vec3 specular = reflection * (F * brdf.x + brdf.y);
 
 	// Ambient part
 	vec3 kD = 1.0 - F;

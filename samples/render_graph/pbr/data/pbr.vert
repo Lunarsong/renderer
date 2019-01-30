@@ -27,7 +27,7 @@ layout(push_constant) uniform DepthMVP {
     mat4 uLightMVP;
 };
 
-const mat4 biasMat = mat4(
+const mat4 kShadowBiasMatrix = mat4(
 	0.5, 0.0, 0.0, 0.0,
 	0.0, 0.5, 0.0, 0.0,
 	0.0, 0.0, 1.0, 0.0,
@@ -42,5 +42,5 @@ void main() {
     vTexCoords = aTexCoords;
     vColor = aColor;
     vNormal = normalize(mat3(uObjectData[gl_InstanceIndex].uMatNormalsMatrix) * aNormal);
-    vShadowCoord = (biasMat * uLightMVP) /* * uMatWorld */ * vec4(aPosition, 1.0);
+    vShadowCoord = (kShadowBiasMatrix * uLightMVP) /* * uMatWorld */ * vec4(aPosition, 1.0);
 }

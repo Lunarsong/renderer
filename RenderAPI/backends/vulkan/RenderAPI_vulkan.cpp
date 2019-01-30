@@ -1313,8 +1313,8 @@ Sampler CreateSampler(Device device, SamplerCreateInfo info) {
       static_cast<VkSamplerAddressMode>(info.address_mode_w);
   samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
   samplerInfo.unnormalizedCoordinates = VK_FALSE;
-  samplerInfo.compareEnable = VK_FALSE;
-  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.compareEnable = info.compare_enable;
+  samplerInfo.compareOp = static_cast<VkCompareOp>(info.compare_op);
   samplerInfo.mipmapMode = static_cast<VkSamplerMipmapMode>(info.mipmap_mode);
   samplerInfo.mipLodBias = 0.0f;
   samplerInfo.minLod = info.min_lod;

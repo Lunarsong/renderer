@@ -2,6 +2,7 @@
 
 #include <RenderAPI/RenderAPI.h>
 #include <RenderUtils/buffered_descriptor_set.h>
+#include <glm/glm.hpp>
 #include "render_graph/render_graph.h"
 #include "scene.h"
 #include "view.h"
@@ -18,5 +19,6 @@ struct ShadowPass {
   static RenderGraphResource AddPass(ShadowPass* shadow,
                                      RenderAPI::Device device,
                                      RenderGraph& render_graph, View* view,
-                                     const Scene* scene);
+                                     const Scene* scene,
+                                     const glm::mat4& shadow_view_projection);
 };

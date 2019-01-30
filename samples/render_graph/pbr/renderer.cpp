@@ -263,9 +263,14 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   descriptor_set_pool_ = RenderAPI::CreateDescriptorSetPool(device, pool_info);
 
   // Shadow sampler.
-  sampler_info.min_filter = RenderAPI::SamplerFilter::kNearest;
-  sampler_info.mag_filter = RenderAPI::SamplerFilter::kNearest;
+  sampler_info.min_filter = RenderAPI::SamplerFilter::kLinear;
+  sampler_info.mag_filter = RenderAPI::SamplerFilter::kLinear;
+  sampler_info.address_mode_u = RenderAPI::SamplerAddressMode::kClampToBorder;
+  sampler_info.address_mode_v = RenderAPI::SamplerAddressMode::kClampToBorder;
+  sampler_info.address_mode_w = RenderAPI::SamplerAddressMode::kClampToBorder;
   sampler_info.max_lod = 1.0f;
+  sampler_info.compare_enable = true;
+  sampler_info.compare_op = RenderAPI::CompareOp::kLessOrEqual;
   shadow_sampler_ = RenderAPI::CreateSampler(device, sampler_info);
 
   shadow_pass_ = ShadowPass::Create(device);
@@ -313,8 +318,14 @@ Renderer::~Renderer() {
 
 RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
                                      const Scene* scene) {
-  RenderGraphResource shadow_texture =
-      ShadowPass::AddPass(&shadow_pass_, device_, render_graph, view, scene);
+  glm::mat4 shadow_projection =
+      glm::ortho(-15.0f, 15.0f, -15.0f, 15.0f, 1.0f, 50.0f);
+  const glm::mat4 shadow_view =
+      glm::lookAt(-scene->directional_light.direction * 20.0f, glm::vec3(0.0f),
+                  glm::vec3(0.0f, 1.0f, 0.0f));
+  const glm::mat4 shadow_view_projection = shadow_projection * shadow_view;
+  RenderGraphResource shadow_texture = ShadowPass::AddPass(
+      &shadow_pass_, device_, render_graph, view, scene, shadow_projection);
 
   RenderGraphResource output;
   render_graph.AddPass(
@@ -339,18 +350,19 @@ RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
         desc.textures.push_back(std::move(depth_desc));
         output = builder.CreateRenderTarget(desc).textures[0];
       },
-      [this, view, scene, shadow_texture](RenderContext* context,
-                                          const Scope& scope) {
+      [this, view, scene, shadow_texture, shadow_view_projection](
+          RenderContext* context, const Scope& scope) {
         SetLightData(*view, scene->indirect_light,
                      scope.GetTexture(shadow_texture));
-        Render(context->cmd, view, *scene);
+        Render(context->cmd, view, *scene, shadow_view_projection);
       });
 
   return output;
 }
 
 void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
-                      const Scene& scene) {
+                      const Scene& scene,
+                      const glm::mat4& shadow_view_projection) {
   glm::mat4 cubemap_mvp = view->camera.view;
   cubemap_mvp[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
   cubemap_mvp = view->camera.projection * cubemap_mvp;
@@ -383,12 +395,6 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
                                    view->light_set);
 
   // Bind the shadow map matrix.
-  glm::mat4 shadow_projection =
-      glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 30.0f);
-  const glm::mat4 shadow_view =
-      glm::lookAt(-scene.directional_light.direction * 20.0f, glm::vec3(0.0f),
-                  glm::vec3(0.0f, 1.0f, 0.0f));
-  const glm::mat4 shadow_view_projection = shadow_projection * shadow_view;
   RenderAPI::CmdPushConstants(cmd, pbr_pipeline_.pipeline_layout,
                               RenderAPI::ShaderStageFlagBits::kVertexBit, 0,
                               sizeof(glm::mat4), &shadow_view_projection);

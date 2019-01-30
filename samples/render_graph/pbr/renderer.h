@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
+#include <glm/glm.hpp>
 #include "render_graph/render_graph.h"
 #include "scene.h"
 #include "shadow_pass.h"
@@ -47,5 +48,6 @@ class Renderer {
   void SetLightData(View& view, const IndirectLight& light,
                     RenderAPI::ImageView shadow_map_texture);
 
-  void Render(RenderAPI::CommandBuffer buffer, View* view, const Scene& scene);
+  void Render(RenderAPI::CommandBuffer buffer, View* view, const Scene& scene,
+              const glm::mat4& shadow_view_projection);
 };

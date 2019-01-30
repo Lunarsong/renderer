@@ -1,6 +1,5 @@
 #include "shadow_pass.h"
 
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "samples/common/util.h"
 #include "vertex.h"
@@ -55,10 +54,9 @@ void ShadowPass::Destroy(RenderAPI::Device device, ShadowPass& shadow) {
   RenderAPI::DestroyRenderPass(shadow.pass);
 }
 
-RenderGraphResource ShadowPass::AddPass(ShadowPass* shadow,
-                                        RenderAPI::Device device,
-                                        RenderGraph& render_graph, View* view,
-                                        const Scene* scene) {
+RenderGraphResource ShadowPass::AddPass(
+    ShadowPass* shadow, RenderAPI::Device device, RenderGraph& render_graph,
+    View* view, const Scene* scene, const glm::mat4& shadow_view_projection) {
   RenderGraphResource output;
   render_graph.AddPass(
       "Shadow Map",
@@ -72,10 +70,11 @@ RenderGraphResource ShadowPass::AddPass(ShadowPass* shadow,
         depth_desc.clear_values.depth_stencil.depth = 1.0f;
         output = builder.CreateRenderTarget(depth_desc).textures[0];
       },
-      [shadow, view, scene](RenderContext* context, const Scope& scope) {
+      [shadow, view, scene, shadow_view_projection](RenderContext* context,
+                                                    const Scope& scope) {
         RenderAPI::CommandBuffer cmd = context->cmd;
         glm::mat4 shadow_projection =
-            glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 30.0f);
+            glm::ortho(-15.0f, 15.0f, -15.0f, 15.0f, 1.0f, 50.0f);
         const glm::mat4 shadow_view =
             glm::lookAt(-scene->directional_light.direction * 20.0f,
                         glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
