@@ -158,6 +158,7 @@ float FilterPCF(vec4 sc) {
 
 // The Witness' Optimized PCF, from MJP's example: https://mynameismjp.wordpress.com/2013/09/10/shadow-maps/
 // More info: http://the-witness.net/news/2013/09/shadow-mapping-summary-part-1/
+#define kFilterSize 7
 #define kUsePlaneDepthBias
 vec2 ComputeReceiverPlaneDepthBias(vec3 texCoordDX, vec3 texCoordDY) {
     vec2 biasUV;
