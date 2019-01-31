@@ -359,7 +359,7 @@ void main() {
 		Lo = SpecularContribution(base_color, direction_to_light, V, N, F0, metallic, roughness);
 
 		// Gather if this fragment is visible from the light's perspective.
-		float shadow_map_term = 1.0f;//CalculateShadowTerm();
+		float shadow_map_term = CalculateShadowTerm();
 		Lo *= shadow_map_term;
 	}
 
@@ -382,5 +382,5 @@ void main() {
 	vec3 ambient = (kD * diffuse + specular) * ambient_occlusion;
 	vec3 color = ambient + Lo;
 
-	outColor = vec4(color * CalculateShadowTerm(), 1.0);
+	outColor = vec4(color, 1.0);
 }
