@@ -14,10 +14,13 @@ constexpr size_t kMaxInstances = 1024;
 struct ObjectsData {
   glm::mat4 uMatWorldViewProjection;
   glm::mat4 uMatWorld;
+  glm::mat4 uMatView;
   glm::mat4 uMatNormalsMatrix;
 };
 
 struct LightDataGPU {
+  glm::mat4 uCascadeViewProjMatrices[4];
+  glm::vec4 uCascadeSplits;
   alignas(16) glm::vec3 uCameraPosition;
   alignas(16) glm::vec3 uLightDirection;
 };
@@ -208,7 +211,7 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   RenderAPI::RenderPassCreateInfo pass_info;
   pass_info.attachments.resize(2);
   pass_info.attachments[0].final_layout =
-      RenderAPI::ImageLayout::kPresentSrcKHR;
+      RenderAPI::ImageLayout::kShaderReadOnlyOptimal;
   pass_info.attachments[0].format =
       RenderAPI::TextureFormat::kR16G16B16A16_SFLOAT;
   pass_info.attachments[1].final_layout =
@@ -248,9 +251,7 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
 
   // Create a pipeline.
   pbr_pipeline_.pipeline_layout = RenderAPI::CreatePipelineLayout(
-      device,
-      {{pbr_pipeline_.descriptor_layouts},
-       {{RenderAPI::ShaderStageFlagBits::kVertexBit, 0, sizeof(glm::mat4)}}});
+      device, {{pbr_pipeline_.descriptor_layouts}});
   pbr_pipeline_.pipeline =
       CreatePipeline(device, render_pass_, pbr_pipeline_.pipeline_layout);
 
@@ -273,11 +274,11 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   sampler_info.compare_op = RenderAPI::CompareOp::kLessOrEqual;
   shadow_sampler_ = RenderAPI::CreateSampler(device, sampler_info);
 
-  shadow_pass_ = ShadowPass::Create(device);
+  shadow_pass_ = CascadeShadowsPass::Create(device);
 }
 
 Renderer::~Renderer() {
-  ShadowPass::Destroy(device_, shadow_pass_);
+  CascadeShadowsPass::Destroy(device_, shadow_pass_);
   if (cubemap_sampler_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroySampler(device_, cubemap_sampler_);
     cubemap_sampler_ = RenderAPI::kInvalidHandle;
@@ -318,20 +319,18 @@ Renderer::~Renderer() {
 
 RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
                                      const Scene* scene) {
-  glm::mat4 shadow_projection =
-      glm::ortho(-15.0f, 15.0f, -15.0f, 15.0f, 1.0f, 50.0f);
-  const glm::mat4 shadow_view =
-      glm::lookAt(-scene->directional_light.direction * 20.0f, glm::vec3(0.0f),
-                  glm::vec3(0.0f, 1.0f, 0.0f));
-  const glm::mat4 shadow_view_projection = shadow_projection * shadow_view;
-  RenderGraphResource shadow_texture = ShadowPass::AddPass(
-      &shadow_pass_, device_, render_graph, view, scene, shadow_projection);
+  RenderAPI::ImageView shadow_texture = shadow_pass_.depth_array_view;
+  std::vector<RenderGraphResource> render_graph_resources =
+      CascadeShadowsPass::AddPass(&shadow_pass_, device_, render_graph, view,
+                                  scene);
 
   RenderGraphResource output;
   render_graph.AddPass(
       "Scene",
       [&](RenderGraphBuilder& builder) {
-        builder.Read(shadow_texture);
+        for (auto it : render_graph_resources) {
+          builder.Read(it);
+        }
 
         RenderGraphFramebufferDesc desc;
         desc.textures.push_back(render_graph.GetSwapChainDescription());
@@ -350,19 +349,17 @@ RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
         desc.textures.push_back(std::move(depth_desc));
         output = builder.CreateRenderTarget(desc).textures[0];
       },
-      [this, view, scene, shadow_texture, shadow_view_projection](
-          RenderContext* context, const Scope& scope) {
-        SetLightData(*view, scene->indirect_light,
-                     scope.GetTexture(shadow_texture));
-        Render(context->cmd, view, *scene, shadow_view_projection);
+      [this, view, scene, shadow_texture](RenderContext* context,
+                                          const Scope& scope) {
+        SetLightData(*view, scene->indirect_light, shadow_texture);
+        Render(context->cmd, view, *scene);
       });
 
   return output;
 }
 
 void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
-                      const Scene& scene,
-                      const glm::mat4& shadow_view_projection) {
+                      const Scene& scene) {
   glm::mat4 cubemap_mvp = view->camera.view;
   cubemap_mvp[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
   cubemap_mvp = view->camera.projection * cubemap_mvp;
@@ -394,13 +391,22 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 1, 1,
                                    view->light_set);
 
-  // Bind the shadow map matrix.
-  RenderAPI::CmdPushConstants(cmd, pbr_pipeline_.pipeline_layout,
-                              RenderAPI::ShaderStageFlagBits::kVertexBit, 0,
-                              sizeof(glm::mat4), &shadow_view_projection);
-
+  const glm::mat4 kShadowBiasMatrix(0.5f, 0.0f, 0.0f, 0.0f,  //
+                                    0.0f, 0.5f, 0.0f, 0.0f,  //
+                                    0.0f, 0.0f, 1.0f, 0.0f,  //
+                                    0.5f, 0.5f, 0.0f, 1.0f);
   LightDataGPU* lights_buffer = reinterpret_cast<LightDataGPU*>(
       RenderAPI::MapBuffer(view->lights_uniform));
+  for (uint32_t i = 0; i < shadow_pass_.num_cascades; ++i) {
+    lights_buffer->uCascadeSplits[i] =
+        view->camera.near_clip +
+        shadow_pass_.cascades[i].max_distance *
+            (view->camera.far_clip - view->camera.near_clip);
+    lights_buffer->uCascadeViewProjMatrices[i] =
+        kShadowBiasMatrix *
+        (shadow_pass_.cascades[i].projection * shadow_pass_.cascades[i].view);
+  }
+
   lights_buffer->uCameraPosition = view->camera.position;
   lights_buffer->uLightDirection = scene.directional_light.direction;
   RenderAPI::UnmapBuffer(view->lights_uniform);
@@ -417,6 +423,7 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
       objects_buffer[instance_id].uMatWorldViewProjection =
           view->camera.projection * view->camera.view *
           objects_buffer[instance_id].uMatWorld;
+      objects_buffer[instance_id].uMatView = view->camera.view;
       objects_buffer[instance_id].uMatNormalsMatrix =
           glm::transpose(glm::inverse(objects_buffer[instance_id].uMatWorld));
 
@@ -452,7 +459,7 @@ void Renderer::SetLightData(View& view, const IndirectLight& light,
   RenderAPI::WriteDescriptorSet write[5];
   RenderAPI::DescriptorBufferInfo buffer_info;
   buffer_info.buffer = view.lights_uniform;
-  buffer_info.range = sizeof(glm::vec3);
+  buffer_info.range = sizeof(LightDataGPU);
   write[0].set = view.light_set;
   write[0].binding = 0;
   write[0].buffers = &buffer_info;
@@ -507,7 +514,7 @@ View* Renderer::CreateView() {
 
   view->lights_uniform = RenderAPI::CreateBuffer(
       device_, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
-      sizeof(glm::vec3));
+      sizeof(LightDataGPU));
 
   view->skybox_set = RenderUtils::BufferedDescriptorSet::Create(
       device_, descriptor_set_pool_, cubemap_pipeline_.descriptor_layouts[0]);

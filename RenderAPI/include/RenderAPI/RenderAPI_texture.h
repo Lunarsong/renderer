@@ -377,8 +377,13 @@ struct ImageCreateInfo {
   ImageCreateInfo(TextureType type, TextureFormat format, Extent3D extent,
                   ImageUsageFlags usage = ImageUsageFlagBits::kTransferDstBit |
                                           ImageUsageFlagBits::kSampledBit,
-                  uint32_t mips = 1)
-      : type(type), format(format), extent(extent), usage(usage), mips(mips) {}
+                  uint32_t mips = 1, uint32_t array_layers = 1)
+      : type(type),
+        format(format),
+        extent(extent),
+        usage(usage),
+        mips(mips),
+        array_layers(array_layers) {}
 };
 
 enum TextureCubeFaces {

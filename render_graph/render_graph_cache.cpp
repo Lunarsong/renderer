@@ -3,7 +3,7 @@
 bool operator==(const RenderGraphTextureDesc& a,
                 const RenderGraphTextureDesc& b) {
   return (a.format == b.format && a.width == b.width && a.height == b.height &&
-          a.load_op == b.load_op);
+          a.load_op == b.load_op && a.layout == b.layout);
 }
 
 bool operator==(const RenderGraphFramebufferDesc& a,

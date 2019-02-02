@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <unordered_map>
 #include <vector>
 #include "render_graph_cache.h"
@@ -40,7 +41,7 @@ class RenderGraphBuilder {
       reads_;
   std::unordered_map<RenderGraphResource, std::vector<RenderGraphPassHandle>>
       writes_;
-  std::unordered_map<RenderGraphResource, std::vector<RenderGraphPassHandle>>
+  std::map<RenderGraphResource, std::vector<RenderGraphPassHandle>>
       render_targets_;
 
   // Resources.

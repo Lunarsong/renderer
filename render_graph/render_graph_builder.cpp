@@ -11,6 +11,18 @@ const RenderGraphResourceTextures& RenderGraphBuilder::UseRenderTarget(
     assert(false && "Must only have one render target per pass!");
   }
 
+  // If the resource is a texture.
+  if (auto& it = textures_.find(resource); it != textures_.end()) {
+    // Create a render target for the texture.
+    RenderGraphFramebufferResource rt;
+    rt.desc = {{it->second.desc}};
+    rt.textures.textures.emplace_back(resource);
+
+    // Forward the frame target resource handle instead.
+    resource = handles_.Create();
+    framebuffers_[resource] = std::move(rt);
+  }
+
   render_targets_[resource].emplace_back(current_pass_);
   auto& it = framebuffers_.find(resource);
   assert(it != framebuffers_.cend() && "Invalid render target!");

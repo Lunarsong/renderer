@@ -2,9 +2,9 @@
 
 #include <RenderAPI/RenderAPI.h>
 #include <glm/glm.hpp>
+#include "cascade_shadow_pass.h"
 #include "render_graph/render_graph.h"
 #include "scene.h"
-#include "shadow_pass.h"
 #include "view.h"
 
 struct RendererPipeline {
@@ -42,12 +42,11 @@ class Renderer {
 
   // Shadow mapping.
   RenderAPI::Sampler shadow_sampler_ = RenderAPI::kInvalidHandle;
-  ShadowPass shadow_pass_;
+  CascadeShadowsPass shadow_pass_;
 
   void SetSkybox(View& view, const Skybox& skybox);
   void SetLightData(View& view, const IndirectLight& light,
                     RenderAPI::ImageView shadow_map_texture);
 
-  void Render(RenderAPI::CommandBuffer buffer, View* view, const Scene& scene,
-              const glm::mat4& shadow_view_projection);
+  void Render(RenderAPI::CommandBuffer buffer, View* view, const Scene& scene);
 };

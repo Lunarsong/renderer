@@ -37,7 +37,6 @@ ShadowPass ShadowPass::Create(RenderAPI::Device device) {
   info.states.blend.attachments.resize(1);
   info.states.depth_stencil.depth_write_enable = true;
   info.states.depth_stencil.depth_test_enable = true;
-
   // info.states.rasterization.front_face = RenderAPI::FrontFace::kClockwise;
 
   info.states.viewport.viewports.emplace_back(

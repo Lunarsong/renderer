@@ -104,12 +104,15 @@ void Run() {
     // Update the camera view.
     view->viewport.width = render_graph_.GetSwapChainDescription().width;
     view->viewport.height = render_graph_.GetSwapChainDescription().height;
-    view->camera.projection =
-        glm::perspectiveFov(glm::radians(45.0f), view->viewport.width,
-                            view->viewport.height, 0.1f, 100.0f);
-    view->camera.projection[1][1] *= -1.0f;
     view->camera.view = camera.view;
     view->camera.position = camera.position;
+    view->camera.near_clip = 0.1f;
+    view->camera.far_clip = 500.0f;
+
+    view->camera.projection = glm::perspectiveFov(
+        glm::radians(45.0f), view->viewport.width, view->viewport.height,
+        view->camera.near_clip, view->camera.far_clip);
+    view->camera.projection[1][1] *= -1.0f;
 
     // Render.
     render_graph_.BeginFrame();
@@ -211,7 +214,7 @@ GLFWwindow* InitWindow() {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   GLFWwindow* window =
-      glfwCreateWindow(1980, 1200, "Vulkan window", nullptr, nullptr);
+      glfwCreateWindow(1980 * 2, 1200 * 2, "Vulkan window", nullptr, nullptr);
   return window;
 }
 
