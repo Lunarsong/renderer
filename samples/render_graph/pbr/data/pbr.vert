@@ -29,7 +29,7 @@ void main() {
 
     vec4 world_position = uObjectData[gl_InstanceIndex].uMatWorld * vec4(aPosition, 1.0);
     vViewPos = uObjectData[gl_InstanceIndex].uMatView * world_position;
-    vWorldPosition = world_position.xyz / world_position.w;
+    vWorldPosition = world_position.xyz;// / world_position.w;
 
     vTexCoords = aTexCoords;
     vColor = aColor;

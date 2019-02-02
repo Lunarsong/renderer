@@ -231,6 +231,7 @@ VkDevice CreateLogicalDevice(
   queueCreateInfo[1].pQueuePriorities = &queuePriority;
 
   VkPhysicalDeviceFeatures deviceFeatures = {};
+  deviceFeatures.depthClamp = VK_TRUE;
 
   VkDeviceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

@@ -82,7 +82,7 @@ CascadeShadowsPass CascadeShadowsPass::Create(RenderAPI::Device device) {
   info.states.blend.attachments.resize(1);
   info.states.depth_stencil.depth_write_enable = true;
   info.states.depth_stencil.depth_test_enable = true;
-  // info.states.rasterization.depth_clamp_enable = true;
+  info.states.rasterization.depth_clamp_enable = true;
   info.states.viewport.viewports.emplace_back(
       RenderAPI::Viewport(0.0f, 0.0f, pass.cascade_size, pass.cascade_size));
 

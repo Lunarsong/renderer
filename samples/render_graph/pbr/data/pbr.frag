@@ -325,7 +325,7 @@ float SampleShadowMapOptimizedPCF(vec3 space_pos, vec3 space_pos_dx, vec3 space_
 #endif
 }
 
-float CalculateShadowTerm() {
+uint GetCascadeIndex() {
 	// Get cascade index for the current fragment's view position
 	uint cascade_index = 0;
 	for(uint i = 0; i < SHADOW_MAP_CASCADE_COUNT - 1; ++i) {
@@ -333,7 +333,10 @@ float CalculateShadowTerm() {
 			cascade_index = i + 1;
 		}
 	}
+	return cascade_index;
+}
 
+float CalculateShadowTerm(uint cascade_index) {
 	// Depth compare for shadowing.
 	vec4 shadow_coord = (uCascadeViewProjMatrices[cascade_index]) * vec4(vWorldPosition, 1.0);	
 	shadow_coord = shadow_coord / shadow_coord.w;
@@ -349,7 +352,7 @@ void main() {
 	vec3 base_color = SRGBToLinear(vec3(253.0, 181.0, 21.0) / vec3(255.0));
 	float metallic = 1.0;
 	float roughness = 0.25;
-	float ambient_occlusion = 0.0f;
+	float ambient_occlusion = 0.6f;
 
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCameraPosition - vWorldPosition);
@@ -366,6 +369,7 @@ void main() {
 	F0 = mix(F0, base_color, metallic);
 
 	vec3 Lo = vec3(0.0);
+	uint cascade_index = GetCascadeIndex();
 	// Per light:
 	{
 		// Calculate per-light radiance
@@ -373,7 +377,7 @@ void main() {
 		Lo = SpecularContribution(base_color, direction_to_light, V, N, F0, metallic, roughness);
 
 		// Gather if this fragment is visible from the light's perspective.
-		float shadow_map_term = CalculateShadowTerm();
+		float shadow_map_term = CalculateShadowTerm(cascade_index);
 		Lo *= shadow_map_term;
 	}
 
@@ -398,20 +402,13 @@ void main() {
 
 	outColor = vec4(color, 1.0);
 
-	uint cascade_index = 0;
-	for(uint i = 0; i < SHADOW_MAP_CASCADE_COUNT - 1; ++i) {
-		if(vViewPos.z > uCascadeSplits[i]) {	
-			cascade_index = i + 1;
-		}
-	}
-	const vec3 CascadeColors[SHADOW_MAP_CASCADE_COUNT] =
-        {
-            vec3(1.0f, 0.0, 0.0f),
-            vec3(0.0f, 1.0f, 0.0f),
-            vec3(0.0f, 0.0f, 1.0f),
-            vec3(1.0f, 1.0f, 0.0f)
-        };
-	//outColor += vec4(CascadeColors[cascade_index] * 0.1, 1.0);
-
-	//outColor = vec4(texture(uShadowMapSampler, vec3(vTexCoords, 0)).rrr, 1.0);
+#ifdef VISUALIZE_CASCADES
+	const vec3 CascadeColors[SHADOW_MAP_CASCADE_COUNT] = {
+			vec3(1.0f, 0.0, 0.0f),
+			vec3(0.0f, 1.0f, 0.0f),
+			vec3(0.0f, 0.0f, 1.0f),
+			vec3(1.0f, 1.0f, 0.0f)
+	};
+	outColor += vec4(CascadeColors[cascade_index] * 0.1, 1.0);
+#endif // VISUALIZE_CASCADES
 }

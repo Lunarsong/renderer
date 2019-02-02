@@ -106,8 +106,8 @@ void Run() {
     view->viewport.height = render_graph_.GetSwapChainDescription().height;
     view->camera.view = camera.view;
     view->camera.position = camera.position;
-    view->camera.near_clip = 0.1f;
-    view->camera.far_clip = 500.0f;
+    view->camera.near_clip = 0.25f;
+    view->camera.far_clip = 250.0f;
 
     view->camera.projection = glm::perspectiveFov(
         glm::radians(45.0f), view->viewport.width, view->viewport.height,
