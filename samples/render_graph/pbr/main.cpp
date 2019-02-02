@@ -104,15 +104,10 @@ void Run() {
     // Update the camera view.
     view->viewport.width = render_graph_.GetSwapChainDescription().width;
     view->viewport.height = render_graph_.GetSwapChainDescription().height;
-    view->camera.view = camera.view;
-    view->camera.position = camera.position;
-    view->camera.near_clip = 0.25f;
-    view->camera.far_clip = 250.0f;
-
-    view->camera.projection = glm::perspectiveFov(
-        glm::radians(45.0f), view->viewport.width, view->viewport.height,
-        view->camera.near_clip, view->camera.far_clip);
-    view->camera.projection[1][1] *= -1.0f;
+    view->camera.SetOrientation(camera.rotation);
+    view->camera.SetPosition(camera.position);
+    view->camera.SetPerspective(45.0f, view->viewport.width,
+                                view->viewport.height, 0.25f, 250.0f);
 
     // Render.
     render_graph_.BeginFrame();

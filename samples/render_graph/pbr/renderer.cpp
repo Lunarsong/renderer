@@ -360,9 +360,11 @@ RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
 
 void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
                       const Scene& scene) {
-  glm::mat4 cubemap_mvp = view->camera.view;
+  const glm::mat4 camera_view = view->camera.GetView();
+
+  glm::mat4 cubemap_mvp = camera_view;
   cubemap_mvp[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-  cubemap_mvp = view->camera.projection * cubemap_mvp;
+  cubemap_mvp = view->camera.GetProjection() * cubemap_mvp;
   RenderAPI::Rect2D scissor = {
       RenderAPI::Offset2D(0, 0),
       RenderAPI::Extent2D(view->viewport.width, view->viewport.height)};
@@ -399,15 +401,15 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
       RenderAPI::MapBuffer(view->lights_uniform));
   for (uint32_t i = 0; i < shadow_pass_.num_cascades; ++i) {
     lights_buffer->uCascadeSplits[i] =
-        view->camera.near_clip +
+        view->camera.NearClip() +
         shadow_pass_.cascades[i].max_distance *
-            (view->camera.far_clip - view->camera.near_clip);
+            (view->camera.FarClip() - view->camera.NearClip());
     lights_buffer->uCascadeViewProjMatrices[i] =
         kShadowBiasMatrix *
         (shadow_pass_.cascades[i].projection * shadow_pass_.cascades[i].view);
   }
 
-  lights_buffer->uCameraPosition = view->camera.position;
+  lights_buffer->uCameraPosition = view->camera.GetPosition();
   lights_buffer->uLightDirection = scene.directional_light.direction;
   RenderAPI::UnmapBuffer(view->lights_uniform);
 
@@ -421,9 +423,9 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
       objects_buffer[instance_id].uMatWorld =  // glm::identity<glm::mat4>();
           glm::mat4_cast(glm::angleAxis(rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
       objects_buffer[instance_id].uMatWorldViewProjection =
-          view->camera.projection * view->camera.view *
+          view->camera.GetProjection() * camera_view *
           objects_buffer[instance_id].uMatWorld;
-      objects_buffer[instance_id].uMatView = view->camera.view;
+      objects_buffer[instance_id].uMatView = camera_view;
       objects_buffer[instance_id].uMatNormalsMatrix =
           glm::transpose(glm::inverse(objects_buffer[instance_id].uMatWorld));
 

@@ -164,7 +164,7 @@ void CreateShadowmapCascades(ShadowMapCascadeInfo* cascades,
 
   // Get the cascade splits.
   float cascade_splits[4];
-  CalculateCascadeSplits(camera.near_clip, camera.far_clip, num_cascades,
+  CalculateCascadeSplits(camera.NearClip(), camera.FarClip(), num_cascades,
                          cascade_splits);
 
   // Copy the info for each cascade.
@@ -179,7 +179,7 @@ void CreateShadowmapCascades(ShadowMapCascadeInfo* cascades,
 
   // Retrieve the camera's inverse view projection.
   const glm::mat4 inverse_camera_view_projection =
-      glm::inverse(camera.projection * camera.view);
+      glm::inverse(camera.GetProjection() * camera.GetView());
 
   // Project the frustum corners into world space.
   glm::vec3 frustumCornersWS[8] = {
