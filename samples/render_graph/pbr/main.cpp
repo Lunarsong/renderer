@@ -214,7 +214,7 @@ GLFWwindow* InitWindow() {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   GLFWwindow* window =
-      glfwCreateWindow(1980 * 2, 1200 * 2, "Vulkan window", nullptr, nullptr);
+      glfwCreateWindow(1980, 1200, "Vulkan window", nullptr, nullptr);
   return window;
 }
 

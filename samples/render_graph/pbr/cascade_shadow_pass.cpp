@@ -245,7 +245,6 @@ void CreateShadowmapCascades(ShadowMapCascadeInfo* cascades,
     cascades[cascade_index].projection =
         glm::ortho(min_extents.x, max_extents.x, min_extents.y, max_extents.y,
                    0.0f, cascades[cascade_index].extents.z);
-    // cascades[cascade_index].projection[1][1] *= -1.0f;
 
     // Stabilize the shadows by snapping the projection to texel size
     // increments. Create the rounding matrix, by projecting the world-space
