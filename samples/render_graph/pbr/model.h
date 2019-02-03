@@ -11,7 +11,7 @@ struct Texture {
   RenderAPI::Sampler sampler = RenderAPI::kInvalidHandle;
 };
 
-struct Material {
+struct MetallicRoughnessMaterial {
   enum AlphaMode { kOpaque, kMask, kBlend };
 
   glm::vec4 base_color_factor = glm::vec4(1.0f);
@@ -39,7 +39,7 @@ struct Primitive {
   uint32_t first_index = 0;
   uint32_t vertex_offset = 0;
 
-  Material material;
+  MetallicRoughnessMaterial material;
 };
 
 struct Model {
@@ -72,7 +72,7 @@ inline void DestroyModel(RenderAPI::Device device, Model& model) {
       primitive.index_buffer = RenderAPI::kInvalidHandle;
     }
 
-    Material& material = primitive.material;
+    MetallicRoughnessMaterial& material = primitive.material;
     DestroyTexture(device, material.base_color_texture);
     DestroyTexture(device, material.metallic_roughness_texture);
     DestroyTexture(device, material.normal_texture);

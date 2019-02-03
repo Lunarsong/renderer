@@ -12,6 +12,7 @@
 #include <glm/gtx/transform.hpp>
 
 #include <RenderAPI/RenderAPI.h>
+#include <Renderer/Material.h>
 #include "render_graph/render_graph.h"
 #include "renderer.h"
 #include "samples/common/camera_controller.h"
@@ -106,7 +107,7 @@ void Run() {
     view->viewport.height = render_graph_.GetSwapChainDescription().height;
     view->camera.SetOrientation(camera.rotation);
     view->camera.SetPosition(camera.position);
-    view->camera.SetPerspective(45.0f, view->viewport.width,
+    view->camera.SetPerspective(70.0f, view->viewport.width,
                                 view->viewport.height, 0.25f, 250.0f);
 
     // Render.

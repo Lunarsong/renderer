@@ -2,6 +2,7 @@
 
 #include <RenderAPI/RenderAPI.h>
 #include <RenderUtils/buffered_descriptor_set.h>
+#include <Renderer/Material.h>
 #include <glm/glm.hpp>
 #include "render_graph/render_graph.h"
 #include "scene.h"
@@ -19,9 +20,7 @@ struct ShadowMapCascadeInfo {
 struct CascadeShadowsPass {
   RenderAPI::Device device;
 
-  RenderAPI::GraphicsPipeline pipeline;
-  RenderAPI::PipelineLayout pipeline_layout;
-  RenderAPI::RenderPass pass;
+  Material* material = nullptr;
 
   uint32_t num_cascades;
   uint32_t cascade_size;

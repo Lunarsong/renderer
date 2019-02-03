@@ -39,10 +39,11 @@ cc_binary(
 cc_library(
   name = "pbr_renderer",
   srcs = ["renderer.cpp", "vertex.cpp", "shadow_pass.cpp", "cascade_shadow_pass.cpp", "camera.cpp"],
-  hdrs = ["renderer.h", "model.h", "scene.h", "camera.h", "view.h", "vertex.h", "shadow_pass.h", "cascade_shadow_pass.h", "material.h"],
+  hdrs = ["renderer.h", "model.h", "scene.h", "camera.h", "view.h", "vertex.h", "shadow_pass.h", "cascade_shadow_pass.h",],
   deps = [
     "@glm//:glm",
     "//:RenderAPI",
+    "//Renderer",
     "//RenderUtils",
     "//render_graph:render_graph",
     "//samples/common",

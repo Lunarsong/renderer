@@ -360,6 +360,16 @@ void DestroyPipelineLayout(Device device, PipelineLayout layout) {
                           reinterpret_cast<VkPipelineLayout>(layout), nullptr);
 }
 
+ShaderModule CreateShaderModule(Device device, const uint32_t* code,
+                                size_t size) {
+  return reinterpret_cast<ShaderModule>(
+      CreateShaderModule(devices_[device].device, code, size));
+}
+void DestroyShaderModule(Device device, ShaderModule module) {
+  vkDestroyShaderModule(devices_[device].device,
+                        reinterpret_cast<VkShaderModule>(module), nullptr);
+}
+
 GraphicsPipeline CreateGraphicsPipeline(
     Device device_handle, RenderPass pass_handle,
     const GraphicsPipelineCreateInfo& info) {
@@ -377,10 +387,16 @@ GraphicsPipeline CreateGraphicsPipeline(
   GraphicsPipelineVk pipeline;
   pipeline.device = device_handle;
 
-  VkShaderModule vertex = CreateShaderModule(device.device, info.vertex.code,
-                                             info.vertex.code_size);
-  VkShaderModule fragment = CreateShaderModule(
-      device.device, info.fragment.code, info.fragment.code_size);
+  VkShaderModule vertex =
+      (info.vertex.module == VK_NULL_HANDLE)
+          ? CreateShaderModule(device.device, info.vertex.code,
+                               info.vertex.code_size)
+          : reinterpret_cast<VkShaderModule>(info.vertex.module);
+  VkShaderModule fragment =
+      (info.fragment.module == VK_NULL_HANDLE)
+          ? CreateShaderModule(device.device, info.fragment.code,
+                               info.fragment.code_size)
+          : reinterpret_cast<VkShaderModule>(info.fragment.module);
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
   vertShaderStageInfo.sType =
@@ -576,8 +592,12 @@ GraphicsPipeline CreateGraphicsPipeline(
     throw std::runtime_error("failed to create graphics pipeline!");
   }
 
-  vkDestroyShaderModule(device.device, vertex, nullptr);
-  vkDestroyShaderModule(device.device, fragment, nullptr);
+  if (info.vertex.module == VK_NULL_HANDLE) {
+    vkDestroyShaderModule(device.device, vertex, nullptr);
+  }
+  if (info.fragment.module == VK_NULL_HANDLE) {
+    vkDestroyShaderModule(device.device, fragment, nullptr);
+  }
 
   GraphicsPipeline handle = graphic_pipelines_.Create(std::move(pipeline));
   return handle;

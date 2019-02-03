@@ -28,6 +28,7 @@ using DescriptorSet = HandleType;
 using Image = HandleType;
 using ImageView = HandleType;
 using Sampler = HandleType;
+using ShaderModule = HandleType;
 
 enum class VertexAttributeType { kFloat, kVec2, kVec3, kVec4 };
 
@@ -64,6 +65,7 @@ ImageView GetSwapChainImageView(SwapChain swapchain, uint32_t index);
 struct ShaderCreateInfo {
   size_t code_size = 0;
   const uint32_t* code = nullptr;
+  ShaderModule module = 0;
 };
 
 struct PipelineLayoutCreateInfo {
@@ -362,6 +364,11 @@ void QueuePresent(SwapChain swapchain, uint32_t image, const PresentInfo& info);
 Image CreateImage(Device device, const ImageCreateInfo& info);
 void DestroyImage(Image image);
 
+// Shader Modules.
+ShaderModule CreateShaderModule(Device device, const uint32_t* code,
+                                size_t size);
+void DestroyShaderModule(Device device, ShaderModule module);
+
 // Helpers.
 void StageCopyDataToBuffer(CommandPool pool, Buffer buffer, const void* data,
                            uint64_t size);
@@ -403,5 +410,8 @@ void DestroyImageView(Device device, ImageView view);
 Sampler CreateSampler(Device device,
                       SamplerCreateInfo info = SamplerCreateInfo());
 void DestroySampler(Device device, Sampler sampler);
+
+// Helpers.
+size_t GetVertexAttributeSize(VertexAttributeType attribute);
 
 }  // namespace RenderAPI

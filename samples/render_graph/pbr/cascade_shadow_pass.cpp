@@ -52,50 +52,37 @@ CascadeShadowsPass CascadeShadowsPass::Create(RenderAPI::Device device) {
 
   CreateCascadeImagesAndViews(device, pass);
 
-  // Pass.
-  RenderAPI::RenderPassCreateInfo pass_info;
-  pass_info.attachments.resize(1);
-  pass_info.attachments[0].final_layout =
-      RenderAPI::ImageLayout::kDepthStencilReadOnlyOptimal;
-  pass_info.attachments[0].format = RenderAPI::TextureFormat::kD32_SFLOAT;
-  pass.pass = RenderAPI::CreateRenderPass(device, pass_info);
-
-  // Pipeline layout.
-  RenderAPI::PipelineLayoutCreateInfo layout_info;
-  layout_info.push_constants.push_back(
-      {RenderAPI::ShaderStageFlagBits::kVertexBit, 0, sizeof(glm::mat4)});
-  pass.pipeline_layout = RenderAPI::CreatePipelineLayout(device, layout_info);
-
-  // Graphics pipeline.
-  RenderAPI::GraphicsPipelineCreateInfo info;
+  // Create the pipeline.
   auto vert =
       util::ReadFile("samples/render_graph/pbr/data/shadow_depth.vert.spv");
   auto frag =
       util::ReadFile("samples/render_graph/pbr/data/shadow_depth.frag.spv");
-  info.vertex.code = reinterpret_cast<const uint32_t*>(vert.data());
-  info.vertex.code_size = vert.size();
-  info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
-  info.fragment.code_size = frag.size();
-  info.vertex_input = {{Vertex::layout}};
-  info.layout = pass.pipeline_layout;
 
-  info.states.blend.attachments.resize(1);
-  info.states.depth_stencil.depth_write_enable = true;
-  info.states.depth_stencil.depth_test_enable = true;
-  info.states.rasterization.depth_clamp_enable = true;
-  info.states.viewport.viewports.emplace_back(
+  Material::Builder builder(device);
+  builder.PushConstant(RenderAPI::ShaderStageFlagBits::kVertexBit,
+                       sizeof(glm::mat4));
+  builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
+                     vert.size());
+  builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
+                       frag.size());
+  builder.Viewport(
       RenderAPI::Viewport(0.0f, 0.0f, pass.cascade_size, pass.cascade_size));
+  builder.DepthWrite(true);
+  builder.DepthTest(true);
+  builder.DepthClamp(true);
+  builder.AddVertexAttribute(VertexAttribute::kPosition);
+  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
+  builder.AddVertexAttribute(VertexAttribute::kColor);
+  builder.AddVertexAttribute(VertexAttribute::kNormals);
+  pass.material = builder.Build();
 
-  pass.pipeline = RenderAPI::CreateGraphicsPipeline(device, pass.pass, info);
   return pass;
 }
 
 void CascadeShadowsPass::Destroy(RenderAPI::Device device,
                                  CascadeShadowsPass& shadow) {
   DestroyCascadeImagesAndViews(device, shadow);
-  RenderAPI::DestroyGraphicsPipeline(shadow.pipeline);
-  RenderAPI::DestroyPipelineLayout(device, shadow.pipeline_layout);
-  RenderAPI::DestroyRenderPass(shadow.pass);
+  Material::Destroy(shadow.material);
 }
 
 void AddCascadePass(CascadeShadowsPass* shadow, RenderAPI::Device device,
@@ -110,9 +97,10 @@ void AddCascadePass(CascadeShadowsPass* shadow, RenderAPI::Device device,
         RenderAPI::CommandBuffer cmd = context->cmd;
 
         // Draw the scene.
-        RenderAPI::CmdBindPipeline(cmd, shadow->pipeline);
+        RenderAPI::CmdBindPipeline(
+            cmd, shadow->material->GetPipeline(context->pass));
 
-        RenderAPI::CmdPushConstants(cmd, shadow->pipeline_layout,
+        RenderAPI::CmdPushConstants(cmd, shadow->material->GetPipelineLayout(),
                                     RenderAPI::ShaderStageFlagBits::kVertexBit,
                                     0, sizeof(glm::mat4),
                                     &shadow_view_projection);
