@@ -34,8 +34,8 @@ class Renderer {
   // PBR Pipeline.
   RendererPipeline pbr_pipeline_;
 
-  // Cubemap Pipeline.
-  RendererPipeline cubemap_pipeline_;
+  // Skybox Material.
+  Material* skybox_material_;
   RenderAPI::Sampler cubemap_sampler_ = RenderAPI::kInvalidHandle;
   RenderAPI::Buffer cubemap_vertex_buffer_ = RenderAPI::kInvalidHandle;
   RenderAPI::Buffer cubemap_index_buffer_ = RenderAPI::kInvalidHandle;
@@ -48,5 +48,5 @@ class Renderer {
   void SetLightData(View& view, const IndirectLight& light,
                     RenderAPI::ImageView shadow_map_texture);
 
-  void Render(RenderAPI::CommandBuffer buffer, View* view, const Scene& scene);
+  void Render(RenderContext* context, View* view, const Scene& scene);
 };

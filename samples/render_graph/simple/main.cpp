@@ -6,7 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include <RenderAPI/RenderAPI.h>
-#include <RenderUtils/buffered_descriptor_set.h>
+#include <RenderUtils/BufferedDescriptorSet.h>
 #include "render_graph/render_graph.h"
 #include "samples/common/util.h"
 

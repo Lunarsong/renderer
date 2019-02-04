@@ -1,4 +1,4 @@
-#include "../include/RenderUtils/buffered_descriptor_set.h"
+#include <RenderUtils/BufferedDescriptorSet.h>
 
 namespace RenderUtils {
 BufferedDescriptorSet BufferedDescriptorSet::Create(

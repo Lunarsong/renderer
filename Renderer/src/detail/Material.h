@@ -8,15 +8,19 @@
 #include "../upcast.h"
 
 struct UniformData {
-  size_t size;
+  size_t size = 0;
   std::unique_ptr<uint8_t[]> data;
 };
 
-struct UniformBinding {
+struct DescriptorData {
   RenderAPI::DescriptorType type;
   RenderAPI::ShaderStageFlags stages;
   RenderAPI::Sampler sampler;
   UniformData uniform;
+};
+struct DescriptorBindings {
+  std::vector<DescriptorData> bindings;
+  RenderAPI::DescriptorSetLayout layout;
 };
 
 class MaterialImpl : public Material {
@@ -26,15 +30,17 @@ class MaterialImpl : public Material {
   RenderAPI::GraphicsPipeline GetPipeline(RenderAPI::RenderPass pass);
   RenderAPI::PipelineLayout GetPipelineLayout();
 
+  MaterialInstance* CreateInstance() const;
+
  private:
   RenderAPI::Device device_;
-  RenderAPI::DescriptorSetLayout descriptor_layout_;
 
   std::vector<RenderAPI::Sampler> samplers_;
-  std::vector<UniformBinding> bindings_;
+  std::vector<DescriptorBindings> descriptors_;
   RenderAPI::GraphicsPipelineCreateInfo info_;
   std::unordered_map<RenderAPI::RenderPass, RenderAPI::GraphicsPipeline>
       pipelines_;
+  RenderAPI::DescriptorSetPool pool_;
 
   friend class Material::Builder;
   MaterialImpl() = default;

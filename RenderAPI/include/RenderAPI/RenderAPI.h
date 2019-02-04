@@ -305,6 +305,9 @@ void DestroyDescriptorSetLayout(DescriptorSetLayout layout);
 struct DescriptorPoolSize {
   DescriptorType type;
   uint32_t count;
+  DescriptorPoolSize() = default;
+  DescriptorPoolSize(DescriptorType type, uint32_t count)
+      : type(type), count(count) {}
 };
 struct CreateDescriptorSetPoolCreateInfo {
   std::vector<DescriptorPoolSize> pools;
@@ -321,11 +324,19 @@ void AllocateDescriptorSets(DescriptorSetPool pool,
 struct DescriptorImageInfo {
   ImageView image_view;
   Sampler sampler;
+
+  DescriptorImageInfo() = default;
+  DescriptorImageInfo(ImageView image_view, Sampler sampler)
+      : image_view(image_view), sampler(sampler) {}
 };
 struct DescriptorBufferInfo {
   Buffer buffer;
   uint64_t offset = 0;
   uint64_t range;
+
+  DescriptorBufferInfo() = default;
+  DescriptorBufferInfo(Buffer buffer, uint64_t offset, uint64_t range)
+      : buffer(buffer), offset(offset), range(range) {}
 };
 struct WriteDescriptorSet {
   DescriptorSet set;
@@ -336,10 +347,19 @@ struct WriteDescriptorSet {
   const DescriptorImageInfo* images = nullptr;
   const DescriptorBufferInfo* buffers = nullptr;
 };
+struct CopyDescriptorSet {
+  DescriptorSet src_set;
+  uint32_t src_binding;
+  uint32_t src_array_element = 0;
+  DescriptorSet dst_set;
+  uint32_t dst_binding;
+  uint32_t dst_array_element = 0;
+  uint32_t descriptor_count = 0;
+};
 void UpdateDescriptorSets(Device device, uint32_t descriptor_write_count,
                           WriteDescriptorSet* descriptor_writes,
                           uint32_t descriptor_copy_count = 0,
-                          void* descriptor_copies = nullptr);
+                          CopyDescriptorSet* descriptor_copies = nullptr);
 
 // Queues.
 struct SubmitInfo {

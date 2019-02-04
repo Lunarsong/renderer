@@ -1,9 +1,10 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
+#include <Renderer/MaterialInstance.h>
 #include "camera.h"
 
-#include <RenderUtils/buffered_descriptor_set.h>
+#include <RenderUtils/BufferedDescriptorSet.h>
 
 struct View {
   Camera camera;
@@ -14,7 +15,7 @@ struct View {
   RenderUtils::BufferedDescriptorSet light_set;
 
   // Skybox
-  RenderUtils::BufferedDescriptorSet skybox_set;
+  MaterialInstance* skybox_material_instance = nullptr;
 
   // Objects
   RenderAPI::DescriptorSet objects_set;

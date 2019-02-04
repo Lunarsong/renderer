@@ -1,10 +1,12 @@
 cc_library(
   name = "RenderUtils",
   hdrs = [
-    "include/RenderUtils/buffered_descriptor_set.h",
+    "include/RenderUtils/BufferedDescriptorSet.h",
+    "include/RenderUtils/BufferedBuffer.h",
   ],
   srcs = [
-    "src/buffered_descriptor_set.cpp"
+    "src/BufferedDescriptorSet.cpp",
+    "src/BufferedBuffer.cpp",
   ],
   includes = [
     "include"

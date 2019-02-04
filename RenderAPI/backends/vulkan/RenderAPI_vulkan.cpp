@@ -1041,14 +1041,30 @@ void AllocateDescriptorSets(DescriptorSetPool pool,
 void UpdateDescriptorSets(Device device, uint32_t descriptor_write_count,
                           WriteDescriptorSet* descriptor_writes,
                           uint32_t descriptor_copy_count,
-                          void* descriptor_copies) {
+                          CopyDescriptorSet* descriptor_copies) {
   VkDescriptorBufferInfo buffers[20];
   VkDescriptorImageInfo image_info[20];
   uint32_t buffer_offset = 0;
   uint32_t image_offset = 0;
 
-  VkWriteDescriptorSet write_sets[10] = {};
+  VkCopyDescriptorSet copies[10] = {};
   assert(descriptor_copy_count <= 10);
+  for (uint32_t i = 0; i < descriptor_copy_count; ++i) {
+    copies[i].sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET;
+    copies[i].pNext = nullptr;
+    copies[i].srcSet =
+        reinterpret_cast<VkDescriptorSet>(descriptor_copies[i].src_set);
+    copies[i].srcBinding = descriptor_copies[i].src_binding;
+    copies[i].srcArrayElement = descriptor_copies[i].src_array_element;
+    copies[i].dstSet =
+        reinterpret_cast<VkDescriptorSet>(descriptor_copies[i].dst_set);
+    copies[i].dstBinding = descriptor_copies[i].dst_binding;
+    copies[i].dstArrayElement = descriptor_copies[i].dst_array_element;
+    copies[i].descriptorCount = descriptor_copies[i].descriptor_count;
+  }
+
+  VkWriteDescriptorSet write_sets[10] = {};
+  assert(descriptor_write_count <= 10);
   for (uint32_t i = 0; i < descriptor_write_count; ++i) {
     write_sets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_sets[i].dstSet =
@@ -1092,7 +1108,7 @@ void UpdateDescriptorSets(Device device, uint32_t descriptor_write_count,
     }
   }
   vkUpdateDescriptorSets(devices_[device].device, descriptor_write_count,
-                         write_sets, 0, nullptr);
+                         write_sets, descriptor_copy_count, copies);
 }
 
 Image CreateImage(Device device, const ImageCreateInfo& info) {

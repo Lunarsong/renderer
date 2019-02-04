@@ -2,6 +2,7 @@
 
 #include <RenderAPI/RenderAPI.h>
 #include <Renderer/BuilderBase.h>
+#include <Renderer/MaterialInstance.h>
 #include <cstdint>
 
 constexpr uint32_t kOffsetNext = -1;
@@ -34,6 +35,8 @@ class Material {
  public:
   static void Destroy(Material* material);
 
+  MaterialInstance* CreateInstance() const;
+
   RenderAPI::GraphicsPipeline GetPipeline(RenderAPI::RenderPass pass);
   RenderAPI::PipelineLayout GetPipelineLayout();
 
@@ -53,15 +56,19 @@ class Material {
     Builder& DepthTest(bool value);
     Builder& DepthWrite(bool value);
     Builder& DepthClamp(bool value);
+    Builder& DepthCompareOp(RenderAPI::CompareOp op);
     Builder& Viewport(RenderAPI::Viewport viewport);
+    Builder& DynamicState(RenderAPI::DynamicState state);
 
     // Inputs:
     Builder& AddVertexAttribute(VertexAttribute attribute);
     Builder& PushConstant(RenderAPI::ShaderStageFlags stages, uint32_t size,
                           uint32_t offset = kOffsetNext);
-    Builder& Uniform(uint32_t binding, RenderAPI::ShaderStageFlags stages,
-                     size_t size, const uint8_t* default_data = nullptr);
-    Builder& Texture(uint32_t binding, RenderAPI::ShaderStageFlags stages,
+    Builder& Uniform(uint32_t set, uint32_t binding,
+                     RenderAPI::ShaderStageFlags stages, size_t size,
+                     const void* default_data = nullptr);
+    Builder& Texture(uint32_t set, uint32_t binding,
+                     RenderAPI::ShaderStageFlags stages,
                      const char* sampler = nullptr);
     Builder& Sampler(const char* name, RenderAPI::SamplerCreateInfo info =
                                            RenderAPI::SamplerCreateInfo());

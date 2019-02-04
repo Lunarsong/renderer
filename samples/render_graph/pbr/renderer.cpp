@@ -219,13 +219,40 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   pass_info.attachments[1].format = RenderAPI::TextureFormat::kD32_SFLOAT;
   render_pass_ = RenderAPI::CreateRenderPass(device, pass_info);
 
-  // Cubemap pipeline.
-  cubemap_pipeline_ = CreateCubemapPipeline(device, render_pass_);
+  // Cubemap Sampler (delete this)
   RenderAPI::SamplerCreateInfo sampler_info;
   sampler_info.min_filter = RenderAPI::SamplerFilter::kLinear;
   sampler_info.mag_filter = RenderAPI::SamplerFilter::kLinear;
   sampler_info.max_lod = 9.0f;
   cubemap_sampler_ = RenderAPI::CreateSampler(device_, sampler_info);
+
+  // Cubemap pipeline.
+  auto vert = ReadFile("samples/render_graph/pbr/data/cubemap.vert.spv");
+  auto frag = ReadFile("samples/render_graph/pbr/data/cubemap.frag.spv");
+
+  Material::Builder builder(device);
+  builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
+                     vert.size());
+  builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
+                       frag.size());
+  builder.PushConstant(RenderAPI::ShaderStageFlagBits::kVertexBit,
+                       sizeof(glm::mat4));
+  builder.Sampler("cubemap", RenderAPI::SamplerCreateInfo(
+                                 RenderAPI::SamplerFilter::kLinear,
+                                 RenderAPI::SamplerFilter::kLinear));
+  glm::vec3 red(1.0f, 0.0f, 0.0f);
+  builder.Uniform(0, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(glm::vec3), &red);
+  builder.Texture(0, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
+  builder.DynamicState(RenderAPI::DynamicState::kViewport);
+  builder.DynamicState(RenderAPI::DynamicState::kScissor);
+  builder.DepthTest(true);
+  builder.DepthCompareOp(RenderAPI::CompareOp::kLessOrEqual);
+  builder.CullMode(RenderAPI::CullModeFlagBits::kFront);
+  builder.AddVertexAttribute(VertexAttribute::kPosition);
+  skybox_material_ = builder.Build();
 
   // Create the pipeline.
   RenderAPI::DescriptorSetLayoutCreateInfo descriptor_layout_info(
@@ -278,6 +305,7 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
 }
 
 Renderer::~Renderer() {
+  Material::Destroy(skybox_material_);
   CascadeShadowsPass::Destroy(device_, shadow_pass_);
   if (cubemap_sampler_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroySampler(device_, cubemap_sampler_);
@@ -295,7 +323,6 @@ Renderer::~Renderer() {
   }
 
   DestroyRendererPipeline(device_, pbr_pipeline_);
-  DestroyRendererPipeline(device_, cubemap_pipeline_);
 
   if (render_pass_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroyRenderPass(render_pass_);
@@ -352,14 +379,14 @@ RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
       [this, view, scene, shadow_texture](RenderContext* context,
                                           const Scope& scope) {
         SetLightData(*view, scene->indirect_light, shadow_texture);
-        Render(context->cmd, view, *scene);
+        Render(context, view, *scene);
       });
 
   return output;
 }
 
-void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
-                      const Scene& scene) {
+void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
+  RenderAPI::CommandBuffer cmd = context->cmd;
   const glm::mat4 camera_view = view->camera.GetView();
 
   glm::mat4 cubemap_mvp = camera_view;
@@ -371,12 +398,13 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
 
   // Draw the Skybox.
   SetSkybox(*view, scene.skybox);
-  RenderAPI::CmdBindPipeline(cmd, cubemap_pipeline_.pipeline);
+  RenderAPI::CmdBindPipeline(cmd, skybox_material_->GetPipeline(context->pass));
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
   RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
-  RenderAPI::CmdBindDescriptorSets(cmd, 0, cubemap_pipeline_.pipeline_layout, 0,
-                                   1, view->skybox_set);
-  RenderAPI::CmdPushConstants(cmd, cubemap_pipeline_.pipeline_layout,
+  RenderAPI::CmdBindDescriptorSets(
+      cmd, 0, skybox_material_->GetPipelineLayout(), 0, 1,
+      view->skybox_material_instance->DescriptorSet(0));
+  RenderAPI::CmdPushConstants(cmd, skybox_material_->GetPipelineLayout(),
                               RenderAPI::ShaderStageFlagBits::kVertexBit, 0,
                               sizeof(glm::mat4), &cubemap_mvp);
   RenderAPI::CmdBindVertexBuffers(cmd, 0, 1, &cubemap_vertex_buffer_);
@@ -441,17 +469,15 @@ void Renderer::Render(RenderAPI::CommandBuffer cmd, View* view,
 }
 
 void Renderer::SetSkybox(View& view, const Skybox& skybox) {
-  ++view.skybox_set;
-  RenderAPI::WriteDescriptorSet write[1];
-  RenderAPI::DescriptorImageInfo image_info;
-  image_info.image_view = skybox.sky;
-  image_info.sampler = cubemap_sampler_;
-  write[0].set = view.skybox_set;
-  write[0].binding = 0;
-  write[0].descriptor_count = 1;
-  write[0].type = RenderAPI::DescriptorType::kCombinedImageSampler;
-  write[0].images = &image_info;
-  RenderAPI::UpdateDescriptorSets(device_, 1, write);
+  view.skybox_material_instance->SetTexture(0, 0, skybox.sky);
+
+  static glm::vec3 color(0.0f);
+  color.r += 1.0f / 600.0f;
+  if (color.r >= 1.0f) {
+    color.r = 0.0f;
+  }
+  view.skybox_material_instance->SetParam(0, 1, color);
+  view.skybox_material_instance->Commit();
 }
 
 void Renderer::SetLightData(View& view, const IndirectLight& light,
@@ -518,8 +544,7 @@ View* Renderer::CreateView() {
       device_, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
       sizeof(LightDataGPU));
 
-  view->skybox_set = RenderUtils::BufferedDescriptorSet::Create(
-      device_, descriptor_set_pool_, cubemap_pipeline_.descriptor_layouts[0]);
+  view->skybox_material_instance = skybox_material_->CreateInstance();
   view->light_set = RenderUtils::BufferedDescriptorSet::Create(
       device_, descriptor_set_pool_, pbr_pipeline_.descriptor_layouts[1]);
 
@@ -543,6 +568,7 @@ View* Renderer::CreateView() {
 }
 
 void Renderer::DestroyView(View** view) {
+  MaterialInstance::Destroy((*view)->skybox_material_instance);
   RenderAPI::DestroyBuffer((*view)->objects_uniform);
   RenderAPI::DestroyBuffer((*view)->lights_uniform);
 

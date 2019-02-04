@@ -1,7 +1,7 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
-#include <RenderUtils/buffered_descriptor_set.h>
+#include <RenderUtils/BufferedDescriptorSet.h>
 #include <glm/glm.hpp>
 #include "render_graph/render_graph.h"
 #include "scene.h"
