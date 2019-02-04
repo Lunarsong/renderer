@@ -21,6 +21,7 @@ struct DescriptorData {
 struct DescriptorBindings {
   std::vector<DescriptorData> bindings;
   RenderAPI::DescriptorSetLayout layout;
+  DescriptorFrequency frequency = DescriptorFrequency::kPerMaterialInstance;
 };
 
 class MaterialImpl : public Material {

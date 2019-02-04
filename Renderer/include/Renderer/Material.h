@@ -27,6 +27,11 @@ enum class BlendMode {
   kBlend,
 };
 
+enum class DescriptorFrequency {
+  kPerMaterialInstance = 0,
+  kUndefined = 1,
+};
+
 enum class LightModel { kMetallicRoughess };
 
 class Material {
@@ -70,6 +75,8 @@ class Material {
     Builder& Texture(uint32_t set, uint32_t binding,
                      RenderAPI::ShaderStageFlags stages,
                      const char* sampler = nullptr);
+    Builder& SetDescriptorFrequency(uint32_t set,
+                                    DescriptorFrequency frequency);
     Builder& Sampler(const char* name, RenderAPI::SamplerCreateInfo info =
                                            RenderAPI::SamplerCreateInfo());
 

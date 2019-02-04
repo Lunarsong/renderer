@@ -176,6 +176,15 @@ Material::Builder& Material::Builder::Texture(
   return *this;
 }
 
+Material::Builder& Material::Builder::SetDescriptorFrequency(
+    uint32_t set, DescriptorFrequency frequency) {
+  if (impl_->descriptors.size() <= set) {
+    impl_->descriptors.resize(set + 1);
+  }
+  impl_->descriptors[set].frequency = frequency;
+  return *this;
+}
+
 Material::Builder& Material::Builder::Sampler(
     const char* name, RenderAPI::SamplerCreateInfo info) {
   impl_->samplers[name] = {std::move(info)};
@@ -346,6 +355,10 @@ MaterialInstance* MaterialImpl::CreateInstance() const {
   std::vector<MaterialDescriptor> descriptors(descriptors_.size());
   for (uint32_t descriptorIdx = 0; descriptorIdx < descriptors_.size();
        ++descriptorIdx) {
+    if (descriptors_[descriptorIdx].frequency !=
+        DescriptorFrequency::kPerMaterialInstance) {
+      continue;
+    }
     // Create param instances.
     const auto& src_set = descriptors_[descriptorIdx];
     descriptors[descriptorIdx].params.resize(src_set.bindings.size());

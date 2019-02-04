@@ -240,9 +240,6 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   builder.Sampler("cubemap", RenderAPI::SamplerCreateInfo(
                                  RenderAPI::SamplerFilter::kLinear,
                                  RenderAPI::SamplerFilter::kLinear));
-  glm::vec3 red(1.0f, 0.0f, 0.0f);
-  builder.Uniform(0, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  sizeof(glm::vec3), &red);
   builder.Texture(0, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   "cubemap");
   builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
@@ -470,13 +467,6 @@ void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
 
 void Renderer::SetSkybox(View& view, const Skybox& skybox) {
   view.skybox_material_instance->SetTexture(0, 0, skybox.sky);
-
-  static glm::vec3 color(0.0f);
-  color.r += 1.0f / 600.0f;
-  if (color.r >= 1.0f) {
-    color.r = 0.0f;
-  }
-  view.skybox_material_instance->SetParam(0, 1, color);
   view.skybox_material_instance->Commit();
 }
 
