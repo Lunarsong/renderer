@@ -30,7 +30,9 @@ void MaterialInstanceImpl::Commit() {
   std::vector<RenderAPI::WriteDescriptorSet> writes;
   std::vector<RenderAPI::CopyDescriptorSet> copies;
   std::vector<RenderAPI::DescriptorImageInfo> images;
+  images.reserve(10);
   std::vector<RenderAPI::DescriptorBufferInfo> buffers;
+  buffers.reserve(10);
   for (auto& descriptor : descriptors_) {
     if (!descriptor.dirty) {
       continue;

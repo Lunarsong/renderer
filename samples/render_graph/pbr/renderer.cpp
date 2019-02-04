@@ -134,71 +134,6 @@ void CreateCubemap(RenderAPI::Device device,
   RenderAPI::StageCopyDataToBuffer(command_pool, ib, indices.data(),
                                    sizeof(uint32_t) * indices.size());
 }
-
-RendererPipeline CreateCubemapPipeline(RenderAPI::Device device,
-                                       RenderAPI::RenderPass pass) {
-  RendererPipeline result;
-  RenderAPI::DescriptorSetLayoutCreateInfo descriptor_layout_info(
-      {{{RenderAPI::DescriptorType::kCombinedImageSampler, 1,
-         RenderAPI::ShaderStageFlagBits::kFragmentBit}}});
-  result.descriptor_layouts.emplace_back(
-      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info));
-
-  RenderAPI::PipelineLayoutCreateInfo layout_info;
-  layout_info.layouts = result.descriptor_layouts;
-  layout_info.push_constants.push_back(
-      {RenderAPI::ShaderStageFlagBits::kVertexBit, 0, sizeof(glm::mat4)});
-  result.pipeline_layout = RenderAPI::CreatePipelineLayout(device, layout_info);
-
-  RenderAPI::GraphicsPipelineCreateInfo info;
-  auto vert = ReadFile("samples/render_graph/pbr/data/cubemap.vert.spv");
-  auto frag = ReadFile("samples/render_graph/pbr/data/cubemap.frag.spv");
-  info.vertex.code = reinterpret_cast<const uint32_t*>(vert.data());
-  info.vertex.code_size = vert.size();
-  info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
-  info.fragment.code_size = frag.size();
-  info.vertex_input.resize(1);
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, 0});
-  info.layout = result.pipeline_layout;
-
-  info.states.blend.attachments.resize(1);
-  info.states.depth_stencil.depth_write_enable = false;
-  info.states.depth_stencil.depth_test_enable = true;
-  info.states.depth_stencil.depth_compare_op =
-      RenderAPI::CompareOp::kLessOrEqual;
-  info.states.rasterization.front_face = RenderAPI::FrontFace::kClockwise;
-
-  info.states.viewport.viewports.emplace_back(
-      RenderAPI::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
-
-  info.states.dynamic_states.states.push_back(
-      RenderAPI::DynamicState::kViewport);
-  info.states.dynamic_states.states.push_back(
-      RenderAPI::DynamicState::kScissor);
-  result.pipeline = RenderAPI::CreateGraphicsPipeline(device, pass, info);
-
-  return result;
-}
-
-void DestroyRendererPipeline(RenderAPI::Device device,
-                             RendererPipeline& pipeline) {
-  if (pipeline.pipeline != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyGraphicsPipeline(pipeline.pipeline);
-    pipeline.pipeline = RenderAPI::kInvalidHandle;
-  }
-  if (pipeline.pipeline_layout != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyPipelineLayout(device, pipeline.pipeline_layout);
-    pipeline.pipeline_layout = RenderAPI::kInvalidHandle;
-  }
-
-  for (auto& it : pipeline.descriptor_layouts) {
-    if (it != RenderAPI::kInvalidHandle) {
-      RenderAPI::DestroyDescriptorSetLayout(it);
-    }
-  }
-  pipeline.descriptor_layouts.clear();
-}
 }  // namespace
 
 Renderer::Renderer(RenderAPI::Device device) : device_(device) {
@@ -207,124 +142,88 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   CreateCubemap(device_, command_pool_, cubemap_vertex_buffer_,
                 cubemap_index_buffer_);
 
-  // Create the render pass.
-  RenderAPI::RenderPassCreateInfo pass_info;
-  pass_info.attachments.resize(2);
-  pass_info.attachments[0].final_layout =
-      RenderAPI::ImageLayout::kShaderReadOnlyOptimal;
-  pass_info.attachments[0].format =
-      RenderAPI::TextureFormat::kR16G16B16A16_SFLOAT;
-  pass_info.attachments[1].final_layout =
-      RenderAPI::ImageLayout::kDepthStencilAttachmentOptimal;
-  pass_info.attachments[1].format = RenderAPI::TextureFormat::kD32_SFLOAT;
-  render_pass_ = RenderAPI::CreateRenderPass(device, pass_info);
-
-  // Cubemap Sampler (delete this)
-  RenderAPI::SamplerCreateInfo sampler_info;
-  sampler_info.min_filter = RenderAPI::SamplerFilter::kLinear;
-  sampler_info.mag_filter = RenderAPI::SamplerFilter::kLinear;
-  sampler_info.max_lod = 9.0f;
-  cubemap_sampler_ = RenderAPI::CreateSampler(device_, sampler_info);
-
   // Cubemap pipeline.
   auto vert = ReadFile("samples/render_graph/pbr/data/cubemap.vert.spv");
   auto frag = ReadFile("samples/render_graph/pbr/data/cubemap.frag.spv");
 
+  Material::Builder skybox_builder(device);
+  skybox_builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
+                            vert.size());
+  skybox_builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
+                              frag.size());
+  skybox_builder.PushConstant(RenderAPI::ShaderStageFlagBits::kVertexBit,
+                              sizeof(glm::mat4));
+  skybox_builder.Sampler("cubemap", RenderAPI::SamplerCreateInfo(
+                                        RenderAPI::SamplerFilter::kLinear,
+                                        RenderAPI::SamplerFilter::kLinear));
+  skybox_builder.Texture(0, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                         "cubemap");
+  skybox_builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
+  skybox_builder.DynamicState(RenderAPI::DynamicState::kViewport);
+  skybox_builder.DynamicState(RenderAPI::DynamicState::kScissor);
+  skybox_builder.DepthTest(true);
+  skybox_builder.DepthCompareOp(RenderAPI::CompareOp::kLessOrEqual);
+  skybox_builder.CullMode(RenderAPI::CullModeFlagBits::kFront);
+  skybox_builder.AddVertexAttribute(VertexAttribute::kPosition);
+  skybox_material_ = skybox_builder.Build();
+
+  // PBR Pipeline
+  vert = ReadFile("samples/render_graph/pbr/data/pbr.vert.spv");
+  frag = ReadFile("samples/render_graph/pbr/data/pbr.frag.spv");
   Material::Builder builder(device);
   builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
                      vert.size());
   builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
                        frag.size());
-  builder.PushConstant(RenderAPI::ShaderStageFlagBits::kVertexBit,
-                       sizeof(glm::mat4));
-  builder.Sampler("cubemap", RenderAPI::SamplerCreateInfo(
-                                 RenderAPI::SamplerFilter::kLinear,
-                                 RenderAPI::SamplerFilter::kLinear));
-  builder.Texture(0, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+  builder.Sampler(
+      "cubemap",
+      RenderAPI::SamplerCreateInfo(
+          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
+          RenderAPI::SamplerMipmapMode::kLinear,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f));
+  builder.Sampler(
+      "shadow",
+      RenderAPI::SamplerCreateInfo(
+          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
+          RenderAPI::SamplerMipmapMode::kLinear,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f, true,
+          RenderAPI::CompareOp::kLessOrEqual));
+  builder.Uniform(0, 0, RenderAPI::ShaderStageFlagBits::kVertexBit,
+                  sizeof(ObjectsData));
+  builder.Uniform(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(LightDataGPU));
+  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   "cubemap");
+  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, "shadow");
+
   builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
   builder.DynamicState(RenderAPI::DynamicState::kViewport);
   builder.DynamicState(RenderAPI::DynamicState::kScissor);
   builder.DepthTest(true);
-  builder.DepthCompareOp(RenderAPI::CompareOp::kLessOrEqual);
-  builder.CullMode(RenderAPI::CullModeFlagBits::kFront);
+  builder.DepthWrite(true);
   builder.AddVertexAttribute(VertexAttribute::kPosition);
-  skybox_material_ = builder.Build();
+  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
+  builder.AddVertexAttribute(VertexAttribute::kColor);
+  builder.AddVertexAttribute(VertexAttribute::kNormals);
 
-  // Create the pipeline.
-  RenderAPI::DescriptorSetLayoutCreateInfo descriptor_layout_info(
-      {{{RenderAPI::DescriptorType::kStorageBuffer, 1,
-         RenderAPI::ShaderStageFlagBits::kVertexBit}}});
-  pbr_pipeline_.descriptor_layouts.emplace_back(
-      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info));
+  pbr_material_ = builder.Build();
 
-  descriptor_layout_info.bindings.clear();
-  descriptor_layout_info.bindings = {
-      {RenderAPI::DescriptorType::kUniformBuffer, 1,
-       RenderAPI::ShaderStageFlagBits::kFragmentBit},
-      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
-       RenderAPI::ShaderStageFlagBits::kFragmentBit},
-      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
-       RenderAPI::ShaderStageFlagBits::kFragmentBit},
-      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
-       RenderAPI::ShaderStageFlagBits::kFragmentBit},
-      {RenderAPI::DescriptorType::kCombinedImageSampler, 1,
-       RenderAPI::ShaderStageFlagBits::kFragmentBit}};
-  pbr_pipeline_.descriptor_layouts.emplace_back(
-      RenderAPI::CreateDescriptorSetLayout(device, descriptor_layout_info));
-
-  // Create a pipeline.
-  pbr_pipeline_.pipeline_layout = RenderAPI::CreatePipelineLayout(
-      device, {{pbr_pipeline_.descriptor_layouts}});
-  pbr_pipeline_.pipeline =
-      CreatePipeline(device, render_pass_, pbr_pipeline_.pipeline_layout);
-
-  // Create the descriptor sets.
-  RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info = {
-      {{RenderAPI::DescriptorType::kStorageBuffer, 1},
-       {RenderAPI::DescriptorType::kUniformBuffer, 3},
-       {RenderAPI::DescriptorType::kCombinedImageSampler, 5 * 3}},
-      /*max_sets=*/7};
-  descriptor_set_pool_ = RenderAPI::CreateDescriptorSetPool(device, pool_info);
-
-  // Shadow sampler.
-  sampler_info.min_filter = RenderAPI::SamplerFilter::kLinear;
-  sampler_info.mag_filter = RenderAPI::SamplerFilter::kLinear;
-  sampler_info.address_mode_u = RenderAPI::SamplerAddressMode::kClampToBorder;
-  sampler_info.address_mode_v = RenderAPI::SamplerAddressMode::kClampToBorder;
-  sampler_info.address_mode_w = RenderAPI::SamplerAddressMode::kClampToBorder;
-  sampler_info.max_lod = 1.0f;
-  sampler_info.compare_enable = true;
-  sampler_info.compare_op = RenderAPI::CompareOp::kLessOrEqual;
-  shadow_sampler_ = RenderAPI::CreateSampler(device, sampler_info);
-
+  // Create the shadow pass.
   shadow_pass_ = CascadeShadowsPass::Create(device);
 }
 
 Renderer::~Renderer() {
+  Material::Destroy(pbr_material_);
   Material::Destroy(skybox_material_);
   CascadeShadowsPass::Destroy(device_, shadow_pass_);
-  if (cubemap_sampler_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroySampler(device_, cubemap_sampler_);
-    cubemap_sampler_ = RenderAPI::kInvalidHandle;
-  }
-
-  if (shadow_sampler_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroySampler(device_, shadow_sampler_);
-    shadow_sampler_ = RenderAPI::kInvalidHandle;
-  }
-
-  if (descriptor_set_pool_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyDescriptorSetPool(descriptor_set_pool_);
-    descriptor_set_pool_ = RenderAPI::kInvalidHandle;
-  }
-
-  DestroyRendererPipeline(device_, pbr_pipeline_);
-
-  if (render_pass_ != RenderAPI::kInvalidHandle) {
-    RenderAPI::DestroyRenderPass(render_pass_);
-    render_pass_ = RenderAPI::kInvalidHandle;
-  }
 
   if (cubemap_vertex_buffer_ != RenderAPI::kInvalidHandle) {
     RenderAPI::DestroyBuffer(cubemap_vertex_buffer_);
@@ -410,50 +309,51 @@ void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
   RenderAPI::CmdDrawIndexed(cmd, 36, 1, 0, 0, 0);
 
   // Draw the scene.
-  RenderAPI::CmdBindPipeline(cmd, pbr_pipeline_.pipeline);
+  RenderAPI::CmdBindPipeline(cmd, pbr_material_->GetPipeline(context->pass));
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
   RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
-  RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 0, 1,
-                                   &view->objects_set);
-  RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_pipeline_.pipeline_layout, 1, 1,
-                                   view->light_set);
 
   const glm::mat4 kShadowBiasMatrix(0.5f, 0.0f, 0.0f, 0.0f,  //
                                     0.0f, 0.5f, 0.0f, 0.0f,  //
                                     0.0f, 0.0f, 1.0f, 0.0f,  //
                                     0.5f, 0.5f, 0.0f, 1.0f);
-  LightDataGPU* lights_buffer = reinterpret_cast<LightDataGPU*>(
-      RenderAPI::MapBuffer(view->lights_uniform));
+  LightDataGPU lights_data;
   for (uint32_t i = 0; i < shadow_pass_.num_cascades; ++i) {
-    lights_buffer->uCascadeSplits[i] =
+    lights_data.uCascadeSplits[i] =
         view->camera.NearClip() +
         shadow_pass_.cascades[i].max_distance *
             (view->camera.FarClip() - view->camera.NearClip());
-    lights_buffer->uCascadeViewProjMatrices[i] =
+    lights_data.uCascadeViewProjMatrices[i] =
         kShadowBiasMatrix *
         (shadow_pass_.cascades[i].projection * shadow_pass_.cascades[i].view);
   }
 
-  lights_buffer->uCameraPosition = view->camera.GetPosition();
-  lights_buffer->uLightDirection = scene.directional_light.direction;
-  RenderAPI::UnmapBuffer(view->lights_uniform);
+  lights_data.uCameraPosition = view->camera.GetPosition();
+  lights_data.uLightDirection = scene.directional_light.direction;
+  view->pbr_material_instance->SetParam(1, 0, lights_data);
 
-  ObjectsData* objects_buffer = reinterpret_cast<ObjectsData*>(
-      RenderAPI::MapBuffer(view->objects_uniform));
+  static float rotation = 0.0f;
+  // rotation += 1 / 60.0f;
+  ObjectsData objects_data;
+  objects_data.uMatWorld =
+      glm::mat4_cast(glm::angleAxis(rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
+  objects_data.uMatWorldViewProjection =
+      view->camera.GetProjection() * camera_view * objects_data.uMatWorld;
+  objects_data.uMatView = camera_view;
+  objects_data.uMatNormalsMatrix =
+      glm::transpose(glm::inverse(objects_data.uMatWorld));
+  view->pbr_material_instance->SetParam(0, 0, objects_data);
+
+  view->pbr_material_instance->Commit();
+  RenderAPI::CmdBindDescriptorSets(
+      cmd, 0, pbr_material_->GetPipelineLayout(), 0, 1,
+      view->pbr_material_instance->DescriptorSet(0));
+  RenderAPI::CmdBindDescriptorSets(
+      cmd, 0, pbr_material_->GetPipelineLayout(), 1, 1,
+      view->pbr_material_instance->DescriptorSet(1));
   size_t instance_id = 0;
   for (const auto& model : scene.models) {
     for (const auto& primitive : model.primitives) {
-      static float rotation = 0.0f;
-      // rotation += 1 / 60.0f;
-      objects_buffer[instance_id].uMatWorld =  // glm::identity<glm::mat4>();
-          glm::mat4_cast(glm::angleAxis(rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
-      objects_buffer[instance_id].uMatWorldViewProjection =
-          view->camera.GetProjection() * camera_view *
-          objects_buffer[instance_id].uMatWorld;
-      objects_buffer[instance_id].uMatView = camera_view;
-      objects_buffer[instance_id].uMatNormalsMatrix =
-          glm::transpose(glm::inverse(objects_buffer[instance_id].uMatWorld));
-
       RenderAPI::CmdBindVertexBuffers(cmd, 0, 1, &primitive.vertex_buffer);
       RenderAPI::CmdBindIndexBuffer(cmd, primitive.index_buffer,
                                     RenderAPI::IndexType::kUInt32);
@@ -462,7 +362,6 @@ void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
                                 instance_id++);
     }
   }
-  RenderAPI::UnmapBuffer(view->objects_uniform);
 }
 
 void Renderer::SetSkybox(View& view, const Skybox& skybox) {
@@ -472,95 +371,24 @@ void Renderer::SetSkybox(View& view, const Skybox& skybox) {
 
 void Renderer::SetLightData(View& view, const IndirectLight& light,
                             RenderAPI::ImageView shadow_map_texture) {
-  ++view.light_set;
-
-  RenderAPI::WriteDescriptorSet write[5];
-  RenderAPI::DescriptorBufferInfo buffer_info;
-  buffer_info.buffer = view.lights_uniform;
-  buffer_info.range = sizeof(LightDataGPU);
-  write[0].set = view.light_set;
-  write[0].binding = 0;
-  write[0].buffers = &buffer_info;
-  write[0].descriptor_count = 1;
-  write[0].type = RenderAPI::DescriptorType::kUniformBuffer;
-
-  RenderAPI::DescriptorImageInfo irradiance_info;
-  irradiance_info.image_view = light.irradiance;
-  irradiance_info.sampler = cubemap_sampler_;
-  write[1].set = view.light_set;
-  write[1].binding = 1;
-  write[1].descriptor_count = 1;
-  write[1].type = RenderAPI::DescriptorType::kCombinedImageSampler;
-  write[1].images = &irradiance_info;
-
-  RenderAPI::DescriptorImageInfo reflections_info;
-  reflections_info.image_view = light.reflections;
-  reflections_info.sampler = cubemap_sampler_;
-  write[2].set = view.light_set;
-  write[2].binding = 2;
-  write[2].descriptor_count = 1;
-  write[2].type = RenderAPI::DescriptorType::kCombinedImageSampler;
-  write[2].images = &reflections_info;
-
-  RenderAPI::DescriptorImageInfo brdf_info;
-  brdf_info.image_view = light.brdf;
-  brdf_info.sampler = cubemap_sampler_;
-  write[3].set = view.light_set;
-  write[3].binding = 3;
-  write[3].descriptor_count = 1;
-  write[3].type = RenderAPI::DescriptorType::kCombinedImageSampler;
-  write[3].images = &brdf_info;
-
-  RenderAPI::DescriptorImageInfo shadowmap_info;
-  shadowmap_info.image_view = shadow_map_texture;
-  shadowmap_info.sampler = shadow_sampler_;
-  write[4].set = view.light_set;
-  write[4].binding = 4;
-  write[4].descriptor_count = 1;
-  write[4].type = RenderAPI::DescriptorType::kCombinedImageSampler;
-  write[4].images = &shadowmap_info;
-
-  RenderAPI::UpdateDescriptorSets(device_, 5, write);
+  view.pbr_material_instance->SetTexture(1, 1, light.irradiance);
+  view.pbr_material_instance->SetTexture(1, 2, light.reflections);
+  view.pbr_material_instance->SetTexture(1, 3, light.brdf);
+  view.pbr_material_instance->SetTexture(1, 4, shadow_map_texture);
 }
 
 View* Renderer::CreateView() {
   View* view = new View();
 
-  view->objects_uniform = RenderAPI::CreateBuffer(
-      device_, RenderAPI::BufferUsageFlagBits::kStorageBuffer,
-      sizeof(ObjectsData) * kMaxInstances);
-
-  view->lights_uniform = RenderAPI::CreateBuffer(
-      device_, RenderAPI::BufferUsageFlagBits::kUniformBuffer,
-      sizeof(LightDataGPU));
-
   view->skybox_material_instance = skybox_material_->CreateInstance();
-  view->light_set = RenderUtils::BufferedDescriptorSet::Create(
-      device_, descriptor_set_pool_, pbr_pipeline_.descriptor_layouts[1]);
-
-  RenderAPI::AllocateDescriptorSets(descriptor_set_pool_,
-                                    std::vector<RenderAPI::DescriptorSetLayout>(
-                                        1, pbr_pipeline_.descriptor_layouts[0]),
-                                    &view->objects_set);
-
-  RenderAPI::WriteDescriptorSet write[1];
-  RenderAPI::DescriptorBufferInfo instance_data_buffer_info;
-  instance_data_buffer_info.buffer = view->objects_uniform;
-  instance_data_buffer_info.range = sizeof(ObjectsData) * kMaxInstances;
-  write[0].set = view->objects_set;
-  write[0].binding = 0;
-  write[0].buffers = &instance_data_buffer_info;
-  write[0].descriptor_count = 1;
-  write[0].type = RenderAPI::DescriptorType::kStorageBuffer;
-  RenderAPI::UpdateDescriptorSets(device_, 1, write);
+  view->pbr_material_instance = pbr_material_->CreateInstance();
 
   return view;
 }
 
 void Renderer::DestroyView(View** view) {
   MaterialInstance::Destroy((*view)->skybox_material_instance);
-  RenderAPI::DestroyBuffer((*view)->objects_uniform);
-  RenderAPI::DestroyBuffer((*view)->lights_uniform);
+  MaterialInstance::Destroy((*view)->pbr_material_instance);
 
   delete *view;
   *view = nullptr;

@@ -482,13 +482,19 @@ struct SamplerCreateInfo {
       SamplerMipmapMode mipmap_mode = SamplerMipmapMode::kLinear,
       SamplerAddressMode address_mode_u = SamplerAddressMode::kClampToEdge,
       SamplerAddressMode address_mode_v = SamplerAddressMode::kClampToEdge,
-      SamplerAddressMode address_mode_w = SamplerAddressMode::kClampToEdge)
+      SamplerAddressMode address_mode_w = SamplerAddressMode::kClampToEdge,
+      float min_lod = 0.0f, float max_lod = 1.0f, bool compare_enable = false,
+      CompareOp compare_op = CompareOp::kAlways)
       : min_filter(min_filter),
         mag_filter(mag_filter),
         mipmap_mode(mipmap_mode),
         address_mode_u(address_mode_u),
         address_mode_v(address_mode_v),
-        address_mode_w(address_mode_w) {}
+        address_mode_w(address_mode_w),
+        min_lod(min_lod),
+        max_lod(max_lod),
+        compare_enable(compare_enable),
+        compare_op(compare_op) {}
 };
 
 }  // namespace RenderAPI

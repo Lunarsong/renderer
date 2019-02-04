@@ -385,8 +385,8 @@ MaterialInstance* MaterialImpl::CreateInstance() const {
 
   // Copy default uniform data.
   uint32_t setIdx = 0;
-  uint32_t bindingIdx = 0;
   for (const auto& set : descriptors_) {
+    uint32_t bindingIdx = 0;
     for (const auto& binding : set.bindings) {
       if (binding.uniform.data) {
         instance->SetParam(setIdx, bindingIdx, binding.uniform.data.get());

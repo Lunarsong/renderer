@@ -7,12 +7,6 @@
 #include "scene.h"
 #include "view.h"
 
-struct RendererPipeline {
-  std::vector<RenderAPI::DescriptorSetLayout> descriptor_layouts;
-  RenderAPI::PipelineLayout pipeline_layout = RenderAPI::kInvalidHandle;
-  RenderAPI::GraphicsPipeline pipeline = RenderAPI::kInvalidHandle;
-};
-
 class Renderer {
  public:
   Renderer(RenderAPI::Device device);
@@ -28,20 +22,16 @@ class Renderer {
   RenderAPI::Device device_;
 
   RenderAPI::CommandPool command_pool_ = RenderAPI::kInvalidHandle;
-  RenderAPI::RenderPass render_pass_ = RenderAPI::kInvalidHandle;
-  RenderAPI::DescriptorSetPool descriptor_set_pool_ = RenderAPI::kInvalidHandle;
 
   // PBR Pipeline.
-  RendererPipeline pbr_pipeline_;
+  Material* pbr_material_;
 
   // Skybox Material.
   Material* skybox_material_;
-  RenderAPI::Sampler cubemap_sampler_ = RenderAPI::kInvalidHandle;
   RenderAPI::Buffer cubemap_vertex_buffer_ = RenderAPI::kInvalidHandle;
   RenderAPI::Buffer cubemap_index_buffer_ = RenderAPI::kInvalidHandle;
 
   // Shadow mapping.
-  RenderAPI::Sampler shadow_sampler_ = RenderAPI::kInvalidHandle;
   CascadeShadowsPass shadow_pass_;
 
   void SetSkybox(View& view, const Skybox& skybox);
