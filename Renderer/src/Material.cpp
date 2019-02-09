@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include "BuilderBase.h"
 #include "detail/MaterialInstance.h"
+#include "detail/MaterialParams.h"
 
 namespace {
 struct SamplerInfo {
@@ -285,20 +286,25 @@ Material* Material::Builder::Build() {
   }
 
   // Create the descriptor set pool.
+  static constexpr uint32_t kNumBuffers = 3;
+  static constexpr uint32_t kMaxInstances = 1000;
+  static constexpr uint32_t kMaxBufferedInstances = kNumBuffers * kMaxInstances;
   RenderAPI::DescriptorSetPool descriptor_set_pool = RenderAPI::kInvalidHandle;
   RenderAPI::CreateDescriptorSetPoolCreateInfo pool_info;
   const uint32_t num_textures =
       static_cast<uint32_t>(impl_->texture_to_sampler.size());
   if (num_textures) {
     pool_info.pools.emplace_back(
-        RenderAPI::DescriptorType::kCombinedImageSampler, num_textures * 3);
+        RenderAPI::DescriptorType::kCombinedImageSampler,
+        num_textures * kMaxBufferedInstances);
   }
   if (impl_->num_uniform_buffers) {
-    pool_info.pools.emplace_back(RenderAPI::DescriptorType::kUniformBuffer,
-                                 impl_->num_uniform_buffers * 3);
+    pool_info.pools.emplace_back(
+        RenderAPI::DescriptorType::kUniformBuffer,
+        impl_->num_uniform_buffers * kMaxBufferedInstances);
   }
   if (!pool_info.pools.empty()) {
-    pool_info.max_sets = 3000;
+    pool_info.max_sets = kMaxBufferedInstances;
     descriptor_set_pool =
         RenderAPI::CreateDescriptorSetPool(impl_->device, pool_info);
   }
@@ -356,7 +362,7 @@ MaterialInstance* MaterialImpl::CreateInstance() const {
   for (uint32_t descriptorIdx = 0; descriptorIdx < descriptors_.size();
        ++descriptorIdx) {
     if (descriptors_[descriptorIdx].frequency !=
-        DescriptorFrequency::kPerMaterialInstance) {
+        DescriptorFrequency::kMaterialInstance) {
       continue;
     }
     // Create param instances.
@@ -400,11 +406,51 @@ MaterialInstance* MaterialImpl::CreateInstance() const {
   return instance;
 }
 
+MaterialParams* MaterialImpl::CreateParams(uint32_t set) const {
+  MaterialParamsImpl* instance = new MaterialParamsImpl();
+  instance->material_ = this;
+
+  // Create param instances.
+  const auto& src_set = descriptors_[set];
+  auto& params = instance->params_;
+  params.resize(src_set.bindings.size());
+  for (uint32_t i = 0; i < src_set.bindings.size(); ++i) {
+    params[i].type = src_set.bindings[i].type;
+    size_t size = src_set.bindings[i].uniform.size;
+    if (size) {
+      params[i].buffers = RenderUtils::BufferedBuffer::Create(
+          device_, RenderAPI::BufferUsageFlagBits::kUniformBuffer, size);
+      params[i].data.size = size;
+      params[i].data.data = std::make_unique<uint8_t[]>(size);
+    } else {
+      params[i].sampler = src_set.bindings[i].sampler;
+    }
+  }
+  instance->set_ = RenderUtils::BufferedDescriptorSet::Create(
+      device_, pool_, descriptors_[set].layout);
+
+  // Copy default uniform data.
+  uint32_t bindingIdx = 0;
+  const auto& set_ref = descriptors_[set];
+  for (const auto& binding : set_ref.bindings) {
+    if (binding.uniform.data) {
+      instance->SetParam(bindingIdx, binding.uniform.data.get());
+    }
+    ++bindingIdx;
+  }
+  instance->Commit();
+
+  return instance;
+}
+
 // Forward base class functions to impl.
 void Material::Destroy(Material* material) { delete upcast(material); }
 
 MaterialInstance* Material::CreateInstance() const {
   return upcast(this)->CreateInstance();
+}
+MaterialParams* Material::CreateParams(uint32_t set) const {
+  return upcast(this)->CreateParams(set);
 }
 RenderAPI::GraphicsPipeline Material::GetPipeline(RenderAPI::RenderPass pass) {
   return upcast(this)->GetPipeline(pass);

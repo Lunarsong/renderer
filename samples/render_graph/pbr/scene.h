@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
+#include <Renderer/MaterialParams.h>
 #include <glm/glm.hpp>
 #include <vector>
 #include "model.h"

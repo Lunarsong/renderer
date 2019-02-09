@@ -13,4 +13,5 @@ struct View {
   // Materials
   MaterialInstance* skybox_material_instance = nullptr;
   MaterialInstance* pbr_material_instance = nullptr;
+  MaterialParams* light_params;
 };

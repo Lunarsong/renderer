@@ -35,7 +35,7 @@ class Renderer {
   CascadeShadowsPass shadow_pass_;
 
   void SetSkybox(View& view, const Skybox& skybox);
-  void SetLightData(View& view, const IndirectLight& light,
+  void SetLightData(View& view, const Scene* scene,
                     RenderAPI::ImageView shadow_map_texture);
 
   void Render(RenderContext* context, View* view, const Scene& scene);

@@ -3,6 +3,7 @@
 #include <RenderAPI/RenderAPI.h>
 #include <Renderer/BuilderBase.h>
 #include <Renderer/MaterialInstance.h>
+#include <Renderer/MaterialParams.h>
 #include <cstdint>
 
 constexpr uint32_t kOffsetNext = -1;
@@ -28,7 +29,7 @@ enum class BlendMode {
 };
 
 enum class DescriptorFrequency {
-  kPerMaterialInstance = 0,
+  kMaterialInstance = 0,
   kUndefined = 1,
 };
 
@@ -41,6 +42,7 @@ class Material {
   static void Destroy(Material* material);
 
   MaterialInstance* CreateInstance() const;
+  MaterialParams* CreateParams(uint32_t set) const;
 
   RenderAPI::GraphicsPipeline GetPipeline(RenderAPI::RenderPass pass);
   RenderAPI::PipelineLayout GetPipelineLayout();

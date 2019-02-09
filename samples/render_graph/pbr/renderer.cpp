@@ -203,6 +203,7 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   "cubemap");
   builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, "shadow");
+  builder.SetDescriptorFrequency(1, DescriptorFrequency::kUndefined);
 
   builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
   builder.DynamicState(RenderAPI::DynamicState::kViewport);
@@ -274,7 +275,7 @@ RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
       },
       [this, view, scene, shadow_texture](RenderContext* context,
                                           const Scope& scope) {
-        SetLightData(*view, scene->indirect_light, shadow_texture);
+        SetLightData(*view, scene, shadow_texture);
         Render(context, view, *scene);
       });
 
@@ -312,25 +313,8 @@ void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
   RenderAPI::CmdBindPipeline(cmd, pbr_material_->GetPipeline(context->pass));
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
   RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
-
-  const glm::mat4 kShadowBiasMatrix(0.5f, 0.0f, 0.0f, 0.0f,  //
-                                    0.0f, 0.5f, 0.0f, 0.0f,  //
-                                    0.0f, 0.0f, 1.0f, 0.0f,  //
-                                    0.5f, 0.5f, 0.0f, 1.0f);
-  LightDataGPU lights_data;
-  for (uint32_t i = 0; i < shadow_pass_.num_cascades; ++i) {
-    lights_data.uCascadeSplits[i] =
-        view->camera.NearClip() +
-        shadow_pass_.cascades[i].max_distance *
-            (view->camera.FarClip() - view->camera.NearClip());
-    lights_data.uCascadeViewProjMatrices[i] =
-        kShadowBiasMatrix *
-        (shadow_pass_.cascades[i].projection * shadow_pass_.cascades[i].view);
-  }
-
-  lights_data.uCameraPosition = view->camera.GetPosition();
-  lights_data.uLightDirection = scene.directional_light.direction;
-  view->pbr_material_instance->SetParam(1, 0, lights_data);
+  RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_material_->GetPipelineLayout(),
+                                   1, 1, view->light_params->DescriptorSet());
 
   static float rotation = 0.0f;
   // rotation += 1 / 60.0f;
@@ -348,9 +332,7 @@ void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
   RenderAPI::CmdBindDescriptorSets(
       cmd, 0, pbr_material_->GetPipelineLayout(), 0, 1,
       view->pbr_material_instance->DescriptorSet(0));
-  RenderAPI::CmdBindDescriptorSets(
-      cmd, 0, pbr_material_->GetPipelineLayout(), 1, 1,
-      view->pbr_material_instance->DescriptorSet(1));
+
   size_t instance_id = 0;
   for (const auto& model : scene.models) {
     for (const auto& primitive : model.primitives) {
@@ -369,12 +351,34 @@ void Renderer::SetSkybox(View& view, const Skybox& skybox) {
   view.skybox_material_instance->Commit();
 }
 
-void Renderer::SetLightData(View& view, const IndirectLight& light,
+void Renderer::SetLightData(View& view, const Scene* scene,
                             RenderAPI::ImageView shadow_map_texture) {
-  view.pbr_material_instance->SetTexture(1, 1, light.irradiance);
-  view.pbr_material_instance->SetTexture(1, 2, light.reflections);
-  view.pbr_material_instance->SetTexture(1, 3, light.brdf);
-  view.pbr_material_instance->SetTexture(1, 4, shadow_map_texture);
+  const IndirectLight& light = scene->indirect_light;
+  view.light_params->SetTexture(1, light.irradiance);
+  view.light_params->SetTexture(2, light.reflections);
+  view.light_params->SetTexture(3, light.brdf);
+  view.light_params->SetTexture(4, shadow_map_texture);
+
+  const glm::mat4 kShadowBiasMatrix(0.5f, 0.0f, 0.0f, 0.0f,  //
+                                    0.0f, 0.5f, 0.0f, 0.0f,  //
+                                    0.0f, 0.0f, 1.0f, 0.0f,  //
+                                    0.5f, 0.5f, 0.0f, 1.0f);
+  LightDataGPU lights_data;
+  for (uint32_t i = 0; i < shadow_pass_.num_cascades; ++i) {
+    lights_data.uCascadeSplits[i] =
+        view.camera.NearClip() +
+        shadow_pass_.cascades[i].max_distance *
+            (view.camera.FarClip() - view.camera.NearClip());
+    lights_data.uCascadeViewProjMatrices[i] =
+        kShadowBiasMatrix *
+        (shadow_pass_.cascades[i].projection * shadow_pass_.cascades[i].view);
+  }
+
+  lights_data.uCameraPosition = view.camera.GetPosition();
+  lights_data.uLightDirection = scene->directional_light.direction;
+  view.light_params->SetParam(0, lights_data);
+
+  view.light_params->Commit();
 }
 
 View* Renderer::CreateView() {
@@ -382,6 +386,7 @@ View* Renderer::CreateView() {
 
   view->skybox_material_instance = skybox_material_->CreateInstance();
   view->pbr_material_instance = pbr_material_->CreateInstance();
+  view->light_params = pbr_material_->CreateParams(1);
 
   return view;
 }
@@ -389,6 +394,7 @@ View* Renderer::CreateView() {
 void Renderer::DestroyView(View** view) {
   MaterialInstance::Destroy((*view)->skybox_material_instance);
   MaterialInstance::Destroy((*view)->pbr_material_instance);
+  MaterialParams::Destroy((*view)->light_params);
 
   delete *view;
   *view = nullptr;
