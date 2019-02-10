@@ -238,7 +238,14 @@ Material* Material::Builder::Build() {
       if (default_sampler == -1) {
         // Create a default sampler.
         default_sampler = samplers.size();
-        samplers.push_back(RenderAPI::CreateSampler(impl_->device));
+        RenderAPI::SamplerCreateInfo info(
+            RenderAPI::SamplerFilter::kLinear,
+            RenderAPI::SamplerFilter::kLinear,
+            RenderAPI::SamplerMipmapMode::kLinear,
+            RenderAPI::SamplerAddressMode::kRepeat,
+            RenderAPI::SamplerAddressMode::kRepeat,
+            RenderAPI::SamplerAddressMode::kRepeat);
+        samplers.push_back(RenderAPI::CreateSampler(impl_->device, info));
       }
       sampler_index = default_sampler;
     }

@@ -3,12 +3,20 @@
 #include <RenderAPI/RenderAPI.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define TINYGLTF_NOEXCEPTION
+#define JSON_NOEXCEPTION
+#include <tiny_gltf.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <iostream>
 #include "vertex.h"
 
-Model CreateCubeModel(RenderAPI::Device device,
-                      RenderAPI::CommandPool command_pool) {
-  Model model;
+Mesh CreateCubeMesh(RenderAPI::Device device,
+                    RenderAPI::CommandPool command_pool) {
+  Mesh mesh;
 
   Primitive primitive;
   // Create the cube vertices.
@@ -76,8 +84,8 @@ Model CreateCubeModel(RenderAPI::Device device,
 
   primitive.num_primitives = 6 * 6;
 
-  model.primitives.emplace_back(std::move(primitive));
-  return model;
+  mesh.primitives.emplace_back(std::move(primitive));
+  return mesh;
 }
 
 void CreateSphere(float radius, unsigned int num_rings,
@@ -129,15 +137,15 @@ std::vector<glm::vec2> CreateSphereUVs(unsigned int num_rings,
   return uvs;
 }
 
-Model CreateSphereModel(RenderAPI::Device device,
-                        RenderAPI::CommandPool command_pool) {
+Mesh CreateSphereMesh(RenderAPI::Device device,
+                      RenderAPI::CommandPool command_pool) {
   std::vector<glm::vec3> positions;
   std::vector<unsigned int> indices;
   CreateSphere(0.5, 128, 128, &positions, &indices);
   std::vector<glm::vec2> uvs = CreateSphereUVs(128, 128);
   std::vector<Vertex> vertices(positions.size());
 
-  Model model;
+  Mesh mesh;
   Primitive primitive;
 
   for (size_t i = 0; i < vertices.size(); ++i) {
@@ -164,13 +172,13 @@ Model CreateSphereModel(RenderAPI::Device device,
 
   primitive.num_primitives = indices.size();
 
-  model.primitives.emplace_back(std::move(primitive));
-  return model;
+  mesh.primitives.emplace_back(std::move(primitive));
+  return mesh;
 }
 
-Model CreatePlaneModel(RenderAPI::Device device,
-                       RenderAPI::CommandPool command_pool) {
-  Model model;
+Mesh CreatePlaneMesh(RenderAPI::Device device,
+                     RenderAPI::CommandPool command_pool) {
+  Mesh mesh;
   Primitive primitive;
   Vertex vertices[] = {{
                            glm::vec3(-20.0f, -2.0f, -20.0f),
@@ -213,6 +221,325 @@ Model CreatePlaneModel(RenderAPI::Device device,
 
   primitive.num_primitives = 6;
 
-  model.primitives.emplace_back(std::move(primitive));
-  return model;
+  mesh.primitives.emplace_back(std::move(primitive));
+  return mesh;
+}
+
+const float* GetGltfPrimitiveData(const char* name, const tinygltf::Model& gltf,
+                                  const tinygltf::Primitive& primitive,
+                                  size_t* count = nullptr,
+                                  size_t* stride = nullptr) {
+  // Obtain the accessor.
+  const auto& attr = primitive.attributes.find(name);
+  if (attr == primitive.attributes.cend()) {
+    return nullptr;
+  }
+  const tinygltf::Accessor& accessor = gltf.accessors[attr->second];
+
+  // Assign the count and stride.
+  if (count) {
+    *count = accessor.count;
+  }
+  if (stride) {
+    *stride = (accessor.type == TINYGLTF_TYPE_VEC3) ? 3 : 4;
+  }
+
+  // Obtains the buffer.
+  const tinygltf::BufferView& buffer_view =
+      gltf.bufferViews[accessor.bufferView];
+  const tinygltf::Buffer& buffer = gltf.buffers[buffer_view.buffer];
+
+  // Retrieve the data.
+  return reinterpret_cast<const float*>(
+      &buffer.data[buffer_view.byteOffset + accessor.byteOffset]);
+}
+
+std::vector<Vertex> VerticesFromGltf(const tinygltf::Model& gltf,
+                                     const tinygltf::Primitive& primitive) {
+  std::vector<Vertex> vertices;
+
+  // Obtain the positions.
+  size_t count;
+  const float* positions =
+      GetGltfPrimitiveData("POSITION", gltf, primitive, &count);
+  assert(positions);
+
+  // Allocate memory for the vertices.
+  vertices.resize(count);
+
+  const float* uvs = GetGltfPrimitiveData("TEXCOORD_0", gltf, primitive);
+  const float* normals = GetGltfPrimitiveData("NORMAL", gltf, primitive);
+  size_t colors_stride;
+  const float* colors =
+      GetGltfPrimitiveData("COLOR_0", gltf, primitive, nullptr, &colors_stride);
+
+  // Copy the data.
+  for (size_t i = 0; i < count; ++i) {
+    vertices[i].position = glm::make_vec3(&positions[i * 3]);
+    vertices[i].uv = uvs ? glm::make_vec2(&uvs[i * 2]) : glm::vec2(0.0f);
+    vertices[i].normal =
+        normals ? glm::make_vec3(&normals[i * 3]) : glm::vec3(0.0f, 1.0f, 0.0f);
+    vertices[i].color =
+        colors ? glm::make_vec3(&colors[i * colors_stride]) : glm::vec3(1.0f);
+  }
+
+  return vertices;
+}
+
+RenderAPI::Buffer IndexBufferFromGltf(RenderAPI::Device device,
+                                      RenderAPI::CommandPool command_pool,
+                                      const tinygltf::Model& gltf,
+                                      const tinygltf::Primitive& primitive,
+                                      uint32_t& num_primitives) {
+  // Obtain the indices.
+  const tinygltf::Accessor& accessor = gltf.accessors[primitive.indices];
+  const tinygltf::BufferView& bufferView =
+      gltf.bufferViews[accessor.bufferView];
+  const tinygltf::Buffer& buffer = gltf.buffers[bufferView.buffer];
+  const void* data =
+      &(buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+
+  num_primitives = accessor.count;
+  uint32_t* indices = nullptr;
+  const uint32_t* copy_indices = nullptr;
+
+  // Create the index data.
+  switch (accessor.componentType) {
+    case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: {
+      copy_indices = static_cast<const uint32_t*>(data);
+      break;
+    }
+    case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: {
+      const uint16_t* buf = static_cast<const uint16_t*>(data);
+      indices = new uint32_t[num_primitives];
+      copy_indices = indices;
+      for (size_t index = 0; index < accessor.count; index++) {
+        indices[index] = static_cast<uint32_t>(buf[index]);
+      }
+      break;
+    }
+    case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE: {
+      const uint8_t* buf = static_cast<const uint8_t*>(data);
+      indices = new uint32_t[num_primitives];
+      copy_indices = indices;
+      for (size_t index = 0; index < accessor.count; index++) {
+        indices[index] = static_cast<uint32_t>(buf[index]);
+      }
+      break;
+    }
+    default:
+      std::cerr << "Index component type " << accessor.componentType
+                << " not supported!" << std::endl;
+      assert(false);
+  }
+
+  // Create the buffer.
+  RenderAPI::Buffer index_buffer = RenderAPI::CreateBuffer(
+      device, RenderAPI::BufferUsageFlagBits::kIndexBuffer,
+      sizeof(uint32_t) * num_primitives, RenderAPI::MemoryUsage::kGpu);
+  RenderAPI::StageCopyDataToBuffer(command_pool, index_buffer, copy_indices,
+                                   sizeof(uint32_t) * num_primitives);
+
+  if (indices) {
+    delete[] indices;
+  }
+  return index_buffer;
+}
+
+RenderAPI::ImageView ImageAndImageViewFromGltf(
+    RenderAPI::Device device, RenderAPI::CommandPool command_pool,
+    const tinygltf::Image& gltf_image) {
+  unsigned char* buffer = nullptr;
+  const unsigned char* copy_buffer = nullptr;
+  size_t buffer_size = 0;
+  if (gltf_image.component == 3) {
+    // Most devices don't support RGB only on Vulkan so convert if necessary
+    buffer_size = gltf_image.width * gltf_image.height * 4;
+    buffer = new unsigned char[buffer_size];
+    copy_buffer = buffer;
+    unsigned char* rgba = buffer;
+    const unsigned char* rgb = &gltf_image.image[0];
+    for (int32_t i = 0; i < gltf_image.width * gltf_image.height; ++i) {
+      for (int32_t j = 0; j < 3; ++j) {
+        rgba[j] = rgb[j];
+      }
+      rgba += 4;
+      rgb += 3;
+    }
+  } else {
+    copy_buffer = &gltf_image.image[0];
+    buffer_size = gltf_image.image.size();
+  }
+  RenderAPI::TextureFormat format = RenderAPI::TextureFormat::kR8G8B8A8_UNORM;
+
+  RenderAPI::Image image = RenderAPI::CreateImage(
+      device, {RenderAPI::TextureType::Texture2D, format,
+               RenderAPI::Extent3D(gltf_image.width, gltf_image.height, 1)});
+  RenderAPI::BufferImageCopy image_copy(0, 0, 0, gltf_image.width,
+                                        gltf_image.height, 1);
+  RenderAPI::StageCopyDataToImage(command_pool, image, copy_buffer, buffer_size,
+                                  1, &image_copy);
+  RenderAPI::ImageViewCreateInfo image_view_info(
+      image, RenderAPI::ImageViewType::Texture2D, format,
+      RenderAPI::ImageSubresourceRange(
+          RenderAPI::ImageAspectFlagBits::kColorBit));
+  RenderAPI::ImageView image_view =
+      RenderAPI::CreateImageView(device, image_view_info);
+
+  if (buffer) {
+    delete[] buffer;
+  }
+
+  return image_view;
+}
+
+bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
+                  Renderer* renderer, Mesh& mesh) {
+  tinygltf::Model gltf;
+  const char* filename = "samples/render_graph/pbr/data/DamagedHelmet.glb";
+  std::string err;
+  std::string warn;
+
+  tinygltf::TinyGLTF loader;
+  bool res = loader.LoadBinaryFromFile(&gltf, &err, &warn, filename);
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cout << "ERR: " << err << std::endl;
+  }
+
+  if (!res) {
+    std::cout << "Failed to load glTF: " << filename << std::endl;
+    return false;
+  } else {
+    std::cout << "Loaded glTF: " << filename << std::endl;
+  }
+
+  std::vector<RenderAPI::ImageView> images;
+  images.reserve(gltf.images.size());
+  for (const auto& it : gltf.images) {
+    images.push_back(ImageAndImageViewFromGltf(device, command_pool, it));
+  }
+
+  std::vector<MaterialInstance*> materials;
+  materials.reserve(gltf.materials.size());
+  for (const auto& mat : gltf.materials) {
+    MaterialInstance* material = renderer->CreatePbrMaterialInstance();
+    MetallicRoughnessMaterialGpuData data;
+    if (const auto& it = mat.values.find("baseColorFactor");
+        it != mat.values.cend()) {
+      data.uBaseColor = glm::make_vec4(it->second.ColorFactor().data());
+    }
+    if (const auto& it = mat.values.find("roughnessFactor");
+        it != mat.values.cend()) {
+      data.uMetallicRoughness.y = static_cast<float>(it->second.Factor());
+    }
+    if (const auto& it = mat.values.find("metallicFactor");
+        it != mat.values.cend()) {
+      data.uMetallicRoughness.x = static_cast<float>(it->second.Factor());
+    }
+    material->SetParam(1, 5, data);
+
+    if (const auto& it = mat.values.find("baseColorTexture");
+        it != mat.values.cend()) {
+      material->SetTexture(1, 0, images[it->second.TextureIndex()]);
+    }
+    if (const auto& it = mat.additionalValues.find("normalTexture");
+        it != mat.additionalValues.cend()) {
+      material->SetTexture(1, 1, images[it->second.TextureIndex()]);
+    }
+    if (const auto& it = mat.additionalValues.find("occlusionTexture");
+        it != mat.additionalValues.cend()) {
+      material->SetTexture(1, 2, images[it->second.TextureIndex()]);
+    }
+    if (const auto& it = mat.values.find("metallicRoughnessTexture");
+        it != mat.values.cend()) {
+      material->SetTexture(1, 3, images[it->second.TextureIndex()]);
+    }
+    if (const auto& it = mat.additionalValues.find("emissiveTexture");
+        it != mat.additionalValues.cend()) {
+      material->SetTexture(1, 4, images[it->second.TextureIndex()]);
+    }
+
+    /*
+
+
+
+
+
+
+        if (mat.additionalValues.find("emissiveTexture") !=
+            mat.additionalValues.end()) {
+          material.emissiveTexture =
+              &textures[mat.additionalValues["emissiveTexture"].TextureIndex()];
+        }
+        if (mat.additionalValues.find("alphaMode") !=
+       mat.additionalValues.end()) { tinygltf::Parameter param =
+       mat.additionalValues["alphaMode"]; if (param.string_value == "BLEND") {
+            material.alphaMode = Material::ALPHAMODE_BLEND;
+          }
+          if (param.string_value == "MASK") {
+            material.alphaCutoff = 0.5f;
+            material.alphaMode = Material::ALPHAMODE_MASK;
+          }
+        }
+        if (mat.additionalValues.find("alphaCutoff") !=
+            mat.additionalValues.end()) {
+          material.alphaCutoff =
+              static_cast<float>(mat.additionalValues["alphaCutoff"].Factor());
+        }
+        if (mat.additionalValues.find("emissiveFactor") !=
+            mat.additionalValues.end()) {
+          material.emissiveFactor = glm::vec4(
+              glm::make_vec3(
+                  mat.additionalValues["emissiveFactor"].ColorFactor().data()),
+              1.0);
+          material.emissiveFactor = glm::vec4(0.0f);
+        }*/
+    materials.push_back(material);
+  }
+
+  for (const auto& gltf_mesh : gltf.meshes) {
+    for (const auto& gltf_primitive : gltf_mesh.primitives) {
+      assert(gltf_primitive.mode == TINYGLTF_MODE_TRIANGLES);
+
+      std::vector<Vertex> vertices = VerticesFromGltf(gltf, gltf_primitive);
+      assert(!vertices.empty());
+      Primitive primitive;
+      primitive.material = materials[gltf_primitive.material];
+      primitive.index_buffer = IndexBufferFromGltf(
+          device, command_pool, gltf, gltf_primitive, primitive.num_primitives);
+      primitive.vertex_buffer = RenderAPI::CreateBuffer(
+          device, RenderAPI::BufferUsageFlagBits::kVertexBuffer,
+          sizeof(Vertex) * vertices.size(), RenderAPI::MemoryUsage::kGpu);
+      RenderAPI::StageCopyDataToBuffer(command_pool, primitive.vertex_buffer,
+                                       vertices.data(),
+                                       sizeof(Vertex) * vertices.size());
+
+      mesh.primitives.push_back(std::move(primitive));
+    }
+    break;
+  }
+
+  const tinygltf::Node& node = gltf.nodes[0];
+  glm::mat4 mat = glm::mat4(1.0f);
+  if (node.matrix.size() == 16) {
+    mat = glm::make_mat4x4(gltf.nodes[0].matrix.data());
+  } else {
+    if (node.scale.size() == 3) {
+      glm::scale(mat, glm::vec3(glm::make_vec3(node.scale.data())));
+    }
+    if (node.rotation.size() == 4) {
+      glm::quat quat = glm::make_quat(node.rotation.data());
+      mat = glm::mat4(quat) * mat;
+    }
+    if (node.translation.size() == 3) {
+      glm::translate(mat, glm::vec3(glm::make_vec3(node.translation.data())));
+    }
+  }
+  mesh.mat_world = mat;
+
+  return true;
 }

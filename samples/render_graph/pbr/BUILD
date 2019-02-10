@@ -19,6 +19,7 @@ cc_binary(
   srcs = ["main.cpp", "util.h", "util.cpp", "tonemap_pass.h", "tonemap_pass.cpp", ],
   copts = [],
   deps = [
+    "@TinyGLTF//:TinyGLTF",
     "@glfw//:glfw",
     "@glm//:glm",
     "//:RenderAPI",
@@ -33,6 +34,7 @@ cc_binary(
     "data/irradiance.ktx",
     "data/prefilter.ktx",
     "data/brdf.ktx",
+    "data/DamagedHelmet.glb",
   ],
 )
 

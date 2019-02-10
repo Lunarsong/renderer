@@ -21,7 +21,7 @@ struct Skybox {
 };
 
 struct Scene {
-  std::vector<Model> models;
+  std::vector<Mesh> meshes;
 
   DirectionalLight directional_light;
   IndirectLight indirect_light;
@@ -38,8 +38,8 @@ struct Scene {
 };
 
 inline void DestroyScene(RenderAPI::Device device, Scene& scene) {
-  for (auto& model : scene.models) {
-    DestroyModel(device, model);
+  for (auto& mesh : scene.meshes) {
+    DestroyMesh(device, mesh);
   }
-  scene.models.clear();
+  scene.meshes.clear();
 }

@@ -33,9 +33,9 @@ struct MetallicRoughnessMaterial {
 };
 
 struct MetallicRoughnessMaterialGpuData {
-  glm::vec4 uBaseColor;
-  glm::vec2 uMetallicRoughness;
-  float uAmbientOcclusion;
+  glm::vec4 uBaseColor = glm::vec4(1.0f);
+  glm::vec2 uMetallicRoughness = glm::vec2(0.0f);
+  float uAmbientOcclusion = 1.0f;
 };
 
 struct Primitive {
@@ -48,7 +48,7 @@ struct Primitive {
   MaterialInstance* material = nullptr;
 };
 
-struct Model {
+struct Mesh {
   std::vector<Primitive> primitives;
   glm::mat4 mat_world = glm::mat4(1.0f);
 };
@@ -68,8 +68,8 @@ inline void DestroyTexture(RenderAPI::Device device, Texture& texture) {
   }
 }
 
-inline void DestroyModel(RenderAPI::Device device, Model& model) {
-  for (auto& primitive : model.primitives) {
+inline void DestroyMesh(RenderAPI::Device device, Mesh& mesh) {
+  for (auto& primitive : mesh.primitives) {
     if (primitive.vertex_buffer != RenderAPI::kInvalidHandle) {
       RenderAPI::DestroyBuffer(primitive.vertex_buffer);
       primitive.vertex_buffer = RenderAPI::kInvalidHandle;

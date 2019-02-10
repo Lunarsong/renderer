@@ -25,6 +25,14 @@ struct LightDataGPU {
   alignas(16) glm::vec3 uLightDirection;
 };
 
+struct PbrPushConstants {
+  float uHasBaseColorTexture;
+  float uHasMetallicRoughnessTexture;
+  float uHasNormalTexture;
+  float uHasOcclusionTexture;
+  float uHasEmissiveTexture;
+};
+
 std::vector<char> ReadFile(const std::string& filename) {
   std::ifstream file(filename, std::ios::ate | std::ios::binary);
   if (!file.is_open()) {
@@ -175,6 +183,8 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
                      vert.size());
   builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
                        frag.size());
+  builder.PushConstant(RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                       sizeof(PbrPushConstants));
   builder.Sampler(
       "cubemap",
       RenderAPI::SamplerCreateInfo(
@@ -202,15 +212,12 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   default_material.uMetallicRoughness = glm::vec2(1.0f, 0.2f);
   default_material.uAmbientOcclusion = 0.25f;
 
-  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  "cubemap");
-  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  "cubemap");
-  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  "cubemap");
-  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  "cubemap");
-  builder.Uniform(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Uniform(1, 5, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   sizeof(MetallicRoughnessMaterialGpuData), &default_material);
   // Light data.
   builder.Uniform(2, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
@@ -229,6 +236,7 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   builder.DynamicState(RenderAPI::DynamicState::kScissor);
   builder.DepthTest(true);
   builder.DepthWrite(true);
+  builder.CullMode(RenderAPI::CullModeFlagBits::kNone);
   builder.AddVertexAttribute(VertexAttribute::kPosition);
   builder.AddVertexAttribute(VertexAttribute::kTexCoords);
   builder.AddVertexAttribute(VertexAttribute::kColor);
@@ -338,17 +346,33 @@ void Renderer::Render(RenderContext* context, View* view, Scene& scene) {
   ObjectsData objects_data;
   objects_data.uMatView = camera_view;
   size_t instance_id = 0;
-  for (const auto& model : scene.models) {
-    // Update the uniform data for the model.
-    objects_data.uMatWorld = model.mat_world;
+  for (const auto& mesh : scene.meshes) {
+    // Update the uniform data for the mesh.
+    objects_data.uMatWorld = mesh.mat_world;
     objects_data.uMatWorldViewProjection =
         view->camera.GetProjection() * camera_view * objects_data.uMatWorld;
     objects_data.uMatNormalsMatrix =
         glm::transpose(glm::inverse(objects_data.uMatWorld));
-    for (const auto& primitive : model.primitives) {
+    for (const auto& primitive : mesh.primitives) {
       assert(primitive.material);
       primitive.material->SetParam(0, 0, objects_data);
       primitive.material->Commit();
+
+      PbrPushConstants push_constants;
+      push_constants.uHasBaseColorTexture =
+          primitive.material->GetTexture(1, 0) ? 1.0f : 0.0f;
+      push_constants.uHasNormalTexture =
+          primitive.material->GetTexture(1, 1) ? 1.0f : 0.0f;
+      push_constants.uHasOcclusionTexture =
+          primitive.material->GetTexture(1, 2) ? 1.0f : 0.0f;
+      push_constants.uHasMetallicRoughnessTexture =
+          primitive.material->GetTexture(1, 3) ? 1.0f : 0.0f;
+      push_constants.uHasEmissiveTexture =
+          primitive.material->GetTexture(1, 4) ? 1.0f : 0.0f;
+
+      RenderAPI::CmdPushConstants(cmd, pbr_material_->GetPipelineLayout(),
+                                  RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                                  0, sizeof(PbrPushConstants), &push_constants);
 
       RenderAPI::CmdBindDescriptorSets(cmd, 0,
                                        pbr_material_->GetPipelineLayout(), 0, 1,

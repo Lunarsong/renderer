@@ -95,8 +95,8 @@ RenderGraphResource ShadowPass::AddPass(
         RenderAPI::UnmapBuffer(view->lights_uniform);*/
 
         size_t instance_id = 0;
-        for (const auto& model : scene->models) {
-          for (const auto& primitive : model.primitives) {
+        for (const auto& mesh : scene->meshes) {
+          for (const auto& primitive : mesh.primitives) {
             RenderAPI::CmdBindVertexBuffers(cmd, 0, 1,
                                             &primitive.vertex_buffer);
             RenderAPI::CmdBindIndexBuffer(cmd, primitive.index_buffer,

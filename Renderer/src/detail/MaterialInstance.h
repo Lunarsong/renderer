@@ -11,7 +11,7 @@ struct MaterialParam {
   UniformData data;
   RenderUtils::BufferedBuffer buffers;
   RenderAPI::Sampler sampler;
-  RenderAPI::ImageView texture = RenderAPI::kInvalidHandle;
+  RenderAPI::ImageView texture = 0;
   bool dirty = false;
 };
 struct MaterialDescriptor {
@@ -27,6 +27,8 @@ class MaterialInstanceImpl : public MaterialInstance {
   void SetTexture(uint32_t set, uint32_t binding, RenderAPI::ImageView texture);
   void SetParam(uint32_t set, uint32_t binding, const void* data);
   void Commit();
+
+  RenderAPI::ImageView GetTexture(uint32_t set, uint32_t binding);
 
   const RenderAPI::DescriptorSet* DescriptorSet(uint32_t set) const;
 

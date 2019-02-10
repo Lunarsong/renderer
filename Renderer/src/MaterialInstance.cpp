@@ -74,7 +74,7 @@ void MaterialInstanceImpl::Commit() {
         copy.dst_binding = binding;
         copy.dst_array_element = 0;
         if (param.type == RenderAPI::DescriptorType::kCombinedImageSampler &&
-            param.texture == RenderAPI::kInvalidHandle) {
+            param.texture == 0) {
           copy.descriptor_count = 0;
         } else {
           copy.descriptor_count = 1;
@@ -98,6 +98,11 @@ void MaterialInstanceImpl::Commit() {
 const RenderAPI::DescriptorSet* MaterialInstanceImpl::DescriptorSet(
     uint32_t set) const {
   return descriptors_[set].set;
+}
+
+RenderAPI::ImageView MaterialInstanceImpl::GetTexture(uint32_t set,
+                                                      uint32_t binding) {
+  return descriptors_[set].params[binding].texture;
 }
 
 MaterialInstanceImpl::~MaterialInstanceImpl() {
@@ -126,4 +131,8 @@ void MaterialInstance::Commit() { upcast(this)->Commit(); }
 const RenderAPI::DescriptorSet* MaterialInstance::DescriptorSet(
     uint32_t set) const {
   return upcast(this)->DescriptorSet(set);
+}
+RenderAPI::ImageView MaterialInstance::GetTexture(uint32_t set,
+                                                  uint32_t binding) {
+  return upcast(this)->GetTexture(set, binding);
 }

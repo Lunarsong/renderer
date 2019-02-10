@@ -11,6 +11,8 @@ class MaterialInstance {
   template <typename T>
   void SetParam(uint32_t set, uint32_t binding, const T& data);
 
+  RenderAPI::ImageView GetTexture(uint32_t set, uint32_t binding);
+
   void Commit();
 
   const RenderAPI::DescriptorSet* DescriptorSet(uint32_t set) const;

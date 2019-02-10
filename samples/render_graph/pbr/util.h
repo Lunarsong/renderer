@@ -1,10 +1,14 @@
 #pragma once
 
+#include <Renderer/Material.h>
 #include "model.h"
+#include "renderer.h"
 
-Model CreateCubeModel(RenderAPI::Device device,
+Mesh CreateCubeMesh(RenderAPI::Device device,
+                    RenderAPI::CommandPool command_pool);
+Mesh CreateSphereMesh(RenderAPI::Device device,
                       RenderAPI::CommandPool command_pool);
-Model CreateSphereModel(RenderAPI::Device device,
-                        RenderAPI::CommandPool command_pool);
-Model CreatePlaneModel(RenderAPI::Device device,
-                       RenderAPI::CommandPool command_pool);
+Mesh CreatePlaneMesh(RenderAPI::Device device,
+                     RenderAPI::CommandPool command_pool);
+bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
+                  Renderer* renderer, Mesh& mesh);

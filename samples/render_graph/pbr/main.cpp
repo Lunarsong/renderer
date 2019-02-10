@@ -61,17 +61,20 @@ void Run() {
 
   Renderer* renderer = new Renderer(device);
   Scene scene;
-  scene.models.emplace_back(CreateSphereModel(device, command_pool));
-  scene.models.back().primitives[0].material =
-      renderer->CreatePbrMaterialInstance();
-  scene.models.emplace_back(CreatePlaneModel(device, command_pool));
-  scene.models.back().primitives[0].material =
+  /*scene.meshes.emplace_back(CreateSphereMesh(device, command_pool));
+  scene.meshes.back().primitives[0].material =
+      renderer->CreatePbrMaterialInstance();*/
+  scene.meshes.emplace_back(CreatePlaneMesh(device, command_pool));
+  scene.meshes.back().primitives[0].material =
       renderer->CreatePbrMaterialInstance();
   MetallicRoughnessMaterialGpuData mat;
   mat.uBaseColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
   mat.uMetallicRoughness = glm::vec2(0.0f, 0.5f);
   mat.uAmbientOcclusion = 0.2f;
-  scene.models.back().primitives[0].material->SetParam(1, 4, mat);
+  scene.meshes.back().primitives[0].material->SetParam(1, 5, mat);
+  Mesh mesh;
+  MeshFromGLTF(device, command_pool, renderer, mesh);
+  scene.meshes.push_back(std::move(mesh));
 
   RenderAPI::Image irradiance_image;
   RenderAPI::ImageView irradiance_view;
