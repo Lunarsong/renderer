@@ -11,24 +11,29 @@ layout(location = 4) in vec4 vViewPos;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 1, binding = 0) uniform GlobalData {
+layout(set = 2, binding = 0) uniform GlobalData {
 		mat4 uCascadeViewProjMatrices[4];
 		vec4 uCascadeSplits;
     vec3 uCameraPosition;
 		vec3 uLightDirection;
 };
 
-layout(set = 1, binding = 1) uniform samplerCube uIrradianceMap;
-layout(set = 1, binding = 2) uniform samplerCube uPrefilteredMap;
-layout(set = 1, binding = 3) uniform sampler2D uBrdfLookupTable;
+layout(set = 2, binding = 1) uniform samplerCube uIrradianceMap;
+layout(set = 2, binding = 2) uniform samplerCube uPrefilteredMap;
+layout(set = 2, binding = 3) uniform sampler2D uBrdfLookupTable;
 // Shadow map.
-layout (set = 1, binding = 4) uniform sampler2DArrayShadow uShadowMapSampler;
+layout (set = 2, binding = 4) uniform sampler2DArrayShadow uShadowMapSampler;
 
-layout(set = 2, binding = 0) uniform sampler2D uAlbedoMap;
-layout(set = 2, binding = 1) uniform sampler2D uNormal;
-layout(set = 2, binding = 2) uniform sampler2D uAmbientOcclusionMap;
-layout(set = 2, binding = 3) uniform sampler2D uMetallicRoughnessMap;
+layout(set = 1, binding = 0) uniform sampler2D uAlbedoMap;
+layout(set = 1, binding = 1) uniform sampler2D uNormal;
+layout(set = 1, binding = 2) uniform sampler2D uAmbientOcclusionMap;
+layout(set = 1, binding = 3) uniform sampler2D uMetallicRoughnessMap;
 
+layout(set = 1, binding = 4) uniform MaterialData {
+		vec4 uBaseColor;
+		vec2 uMetallicRoughness;
+		float uAmbientOcclusion;
+};
 
 #define PI 3.1415926535897932384626433832795
 
@@ -349,10 +354,9 @@ float CalculateShadowTerm(uint cascade_index) {
 }
 
 void main() {
-	vec3 base_color = SRGBToLinear(vec3(253.0, 181.0, 21.0) / vec3(255.0));
-	float metallic = 1.0;
-	float roughness = 0.25;
-	float ambient_occlusion = 0.6f;
+	vec3 base_color = SRGBToLinear(uBaseColor.rgb); // SRGBToLinear(vec3(253.0, 181.0, 21.0) / vec3(255.0));
+	float metallic = uMetallicRoughness.x;
+	float roughness = uMetallicRoughness.y;
 
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCameraPosition - vWorldPosition);
@@ -397,7 +401,7 @@ void main() {
 	// Ambient part
 	vec3 kD = 1.0 - F;
 	kD *= 1.0 - metallic;
-	vec3 ambient = (kD * diffuse + specular) * ambient_occlusion;
+	vec3 ambient = (kD * diffuse + specular) * uAmbientOcclusion;
 	vec3 color = ambient + Lo;
 
 	outColor = vec4(color, 1.0);

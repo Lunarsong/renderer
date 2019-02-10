@@ -13,10 +13,12 @@ class Renderer {
   ~Renderer();
 
   RenderGraphResource Render(RenderGraph& render_graph, View* view,
-                             const Scene* scene);
+                             Scene* scene);
 
   View* CreateView();
   void DestroyView(View** view);
+
+  MaterialInstance* CreatePbrMaterialInstance();
 
  private:
   RenderAPI::Device device_;
@@ -38,5 +40,5 @@ class Renderer {
   void SetLightData(View& view, const Scene* scene,
                     RenderAPI::ImageView shadow_map_texture);
 
-  void Render(RenderContext* context, View* view, const Scene& scene);
+  void Render(RenderContext* context, View* view, Scene& scene);
 };

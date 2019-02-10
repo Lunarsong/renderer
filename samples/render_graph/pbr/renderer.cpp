@@ -192,18 +192,37 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
           RenderAPI::SamplerAddressMode::kClampToEdge,
           RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f, true,
           RenderAPI::CompareOp::kLessOrEqual));
+  // Transform data.
   builder.Uniform(0, 0, RenderAPI::ShaderStageFlagBits::kVertexBit,
                   sizeof(ObjectsData));
-  builder.Uniform(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  sizeof(LightDataGPU));
+  // Material data.
+  MetallicRoughnessMaterialGpuData default_material;
+  default_material.uBaseColor =
+      glm::vec4(253.0f, 181.0f, 21.0f, 255.0f) / glm::vec4(255.0f);
+  default_material.uMetallicRoughness = glm::vec2(1.0f, 0.2f);
+  default_material.uAmbientOcclusion = 0.25f;
+
+  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
   builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   "cubemap");
   builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   "cubemap");
   builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   "cubemap");
-  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, "shadow");
-  builder.SetDescriptorFrequency(1, DescriptorFrequency::kUndefined);
+  builder.Uniform(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(MetallicRoughnessMaterialGpuData), &default_material);
+  // Light data.
+  builder.Uniform(2, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(LightDataGPU));
+  builder.Texture(2, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, "shadow");
+  builder.SetDescriptorFrequency(2, DescriptorFrequency::kUndefined);
 
   builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
   builder.DynamicState(RenderAPI::DynamicState::kViewport);
@@ -242,7 +261,7 @@ Renderer::~Renderer() {
 }
 
 RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
-                                     const Scene* scene) {
+                                     Scene* scene) {
   RenderAPI::ImageView shadow_texture = shadow_pass_.depth_array_view;
   std::vector<RenderGraphResource> render_graph_resources =
       CascadeShadowsPass::AddPass(&shadow_pass_, device_, render_graph, view,
@@ -282,7 +301,7 @@ RenderGraphResource Renderer::Render(RenderGraph& render_graph, View* view,
   return output;
 }
 
-void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
+void Renderer::Render(RenderContext* context, View* view, Scene& scene) {
   RenderAPI::CommandBuffer cmd = context->cmd;
   const glm::mat4 camera_view = view->camera.GetView();
 
@@ -314,28 +333,30 @@ void Renderer::Render(RenderContext* context, View* view, const Scene& scene) {
   RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
   RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
   RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_material_->GetPipelineLayout(),
-                                   1, 1, view->light_params->DescriptorSet());
+                                   2, 1, view->light_params->DescriptorSet());
 
-  static float rotation = 0.0f;
-  // rotation += 1 / 60.0f;
   ObjectsData objects_data;
-  objects_data.uMatWorld =
-      glm::mat4_cast(glm::angleAxis(rotation, glm::vec3(0.0f, 1.0f, 0.0f)));
-  objects_data.uMatWorldViewProjection =
-      view->camera.GetProjection() * camera_view * objects_data.uMatWorld;
   objects_data.uMatView = camera_view;
-  objects_data.uMatNormalsMatrix =
-      glm::transpose(glm::inverse(objects_data.uMatWorld));
-  view->pbr_material_instance->SetParam(0, 0, objects_data);
-
-  view->pbr_material_instance->Commit();
-  RenderAPI::CmdBindDescriptorSets(
-      cmd, 0, pbr_material_->GetPipelineLayout(), 0, 1,
-      view->pbr_material_instance->DescriptorSet(0));
-
   size_t instance_id = 0;
   for (const auto& model : scene.models) {
+    // Update the uniform data for the model.
+    objects_data.uMatWorld = model.mat_world;
+    objects_data.uMatWorldViewProjection =
+        view->camera.GetProjection() * camera_view * objects_data.uMatWorld;
+    objects_data.uMatNormalsMatrix =
+        glm::transpose(glm::inverse(objects_data.uMatWorld));
     for (const auto& primitive : model.primitives) {
+      assert(primitive.material);
+      primitive.material->SetParam(0, 0, objects_data);
+      primitive.material->Commit();
+
+      RenderAPI::CmdBindDescriptorSets(cmd, 0,
+                                       pbr_material_->GetPipelineLayout(), 0, 1,
+                                       primitive.material->DescriptorSet(0));
+      RenderAPI::CmdBindDescriptorSets(cmd, 0,
+                                       pbr_material_->GetPipelineLayout(), 1, 1,
+                                       primitive.material->DescriptorSet(1));
+
       RenderAPI::CmdBindVertexBuffers(cmd, 0, 1, &primitive.vertex_buffer);
       RenderAPI::CmdBindIndexBuffer(cmd, primitive.index_buffer,
                                     RenderAPI::IndexType::kUInt32);
@@ -385,17 +406,19 @@ View* Renderer::CreateView() {
   View* view = new View();
 
   view->skybox_material_instance = skybox_material_->CreateInstance();
-  view->pbr_material_instance = pbr_material_->CreateInstance();
-  view->light_params = pbr_material_->CreateParams(1);
+  view->light_params = pbr_material_->CreateParams(2);
 
   return view;
 }
 
 void Renderer::DestroyView(View** view) {
   MaterialInstance::Destroy((*view)->skybox_material_instance);
-  MaterialInstance::Destroy((*view)->pbr_material_instance);
   MaterialParams::Destroy((*view)->light_params);
 
   delete *view;
   *view = nullptr;
+}
+
+MaterialInstance* Renderer::CreatePbrMaterialInstance() {
+  return pbr_material_->CreateInstance();
 }

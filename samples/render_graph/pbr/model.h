@@ -1,8 +1,8 @@
 #pragma once
 
 #include <RenderAPI/RenderAPI.h>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
+#include <Renderer/MaterialInstance.h>
+#include <glm/glm.hpp>
 #include <vector>
 
 struct Texture {
@@ -32,6 +32,12 @@ struct MetallicRoughnessMaterial {
   RenderAPI::DescriptorSet descriptor_set;
 };
 
+struct MetallicRoughnessMaterialGpuData {
+  glm::vec4 uBaseColor;
+  glm::vec2 uMetallicRoughness;
+  float uAmbientOcclusion;
+};
+
 struct Primitive {
   RenderAPI::Buffer vertex_buffer = RenderAPI::kInvalidHandle;
   RenderAPI::Buffer index_buffer = RenderAPI::kInvalidHandle;
@@ -39,11 +45,12 @@ struct Primitive {
   uint32_t first_index = 0;
   uint32_t vertex_offset = 0;
 
-  MetallicRoughnessMaterial material;
+  MaterialInstance* material = nullptr;
 };
 
 struct Model {
   std::vector<Primitive> primitives;
+  glm::mat4 mat_world = glm::mat4(1.0f);
 };
 
 inline void DestroyTexture(RenderAPI::Device device, Texture& texture) {
@@ -72,11 +79,6 @@ inline void DestroyModel(RenderAPI::Device device, Model& model) {
       primitive.index_buffer = RenderAPI::kInvalidHandle;
     }
 
-    MetallicRoughnessMaterial& material = primitive.material;
-    DestroyTexture(device, material.base_color_texture);
-    DestroyTexture(device, material.metallic_roughness_texture);
-    DestroyTexture(device, material.normal_texture);
-    DestroyTexture(device, material.occlusion_texture);
-    DestroyTexture(device, material.emissive_texture);
+    MaterialInstance::Destroy(primitive.material);
   }
 }
