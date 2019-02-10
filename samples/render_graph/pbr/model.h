@@ -34,7 +34,7 @@ struct MetallicRoughnessMaterial {
 
 struct MetallicRoughnessMaterialGpuData {
   glm::vec4 uBaseColor = glm::vec4(1.0f);
-  glm::vec2 uMetallicRoughness = glm::vec2(0.0f);
+  glm::vec2 uMetallicRoughness = glm::vec2(1.0f);
   float uAmbientOcclusion = 1.0f;
 };
 

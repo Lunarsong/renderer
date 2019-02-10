@@ -370,13 +370,13 @@ void main() {
 	if (uHasBaseColorTexture == 1.0f) {
 		base_color *= SRGBToLinear(texture(uAlbedoMap, vTexCoords).rgb);
 	}
-	float metallic = uMetallicRoughness.x;
-	float roughness = uMetallicRoughness.y;
 
 	vec3 N = GetNormalFromMap();
 	vec3 V = normalize(uCameraPosition - vWorldPosition);
 	vec3 R = -normalize(reflect(V, N));
 
+	float metallic = uMetallicRoughness.x;
+	float roughness = uMetallicRoughness.y;
 	if (uHasMetallicRoughnessTexture == 1.0f) {
 		vec3 metallic_roughness_texture = texture(uMetallicRoughnessMap, vTexCoords).rgb;
 		metallic *= metallic_roughness_texture.b;
