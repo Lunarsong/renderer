@@ -41,7 +41,7 @@ class Material {
  public:
   static void Destroy(Material* material);
 
-  MaterialInstance* CreateInstance() const;
+  MaterialInstance* CreateInstance();
   MaterialParams* CreateParams(uint32_t set) const;
 
   RenderAPI::GraphicsPipeline GetPipeline(RenderAPI::RenderPass pass);

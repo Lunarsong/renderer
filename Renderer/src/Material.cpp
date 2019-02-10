@@ -324,6 +324,11 @@ Material* Material::Builder::Build() {
   material->descriptors_ = std::move(impl_->descriptors);
   material->samplers_ = std::move(samplers);
 
+  // Clean the builder for reuse.
+  Material::BuilderDetails clean;
+  clean.device = impl_->device;
+  *impl_ = std::move(clean);
+
   return material;
 }
 
@@ -363,7 +368,7 @@ RenderAPI::PipelineLayout MaterialImpl::GetPipelineLayout() {
   return info_.layout;
 }
 
-MaterialInstance* MaterialImpl::CreateInstance() const {
+MaterialInstance* MaterialImpl::CreateInstance() {
   // Create the descriptor sets.
   std::vector<MaterialDescriptor> descriptors(descriptors_.size());
   for (uint32_t descriptorIdx = 0; descriptorIdx < descriptors_.size();
@@ -453,7 +458,7 @@ MaterialParams* MaterialImpl::CreateParams(uint32_t set) const {
 // Forward base class functions to impl.
 void Material::Destroy(Material* material) { delete upcast(material); }
 
-MaterialInstance* Material::CreateInstance() const {
+MaterialInstance* Material::CreateInstance() {
   return upcast(this)->CreateInstance();
 }
 MaterialParams* Material::CreateParams(uint32_t set) const {

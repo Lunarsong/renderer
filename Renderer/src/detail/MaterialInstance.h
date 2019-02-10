@@ -28,15 +28,14 @@ class MaterialInstanceImpl : public MaterialInstance {
   void SetParam(uint32_t set, uint32_t binding, const void* data);
   void Commit();
 
-  RenderAPI::ImageView GetTexture(uint32_t set, uint32_t binding);
-
   const RenderAPI::DescriptorSet* DescriptorSet(uint32_t set) const;
+  Material* GetMaterial();
 
   ~MaterialInstanceImpl();
 
  private:
   RenderAPI::Device device_;
-  const Material* material_;
+  Material* material_;
   std::vector<MaterialDescriptor> descriptors_;
   bool dirty_ = false;
 };

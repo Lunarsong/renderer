@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Renderer/Material.h>
+#include <vector>
+#include "MaterialCache.h"
 #include "model.h"
 #include "renderer.h"
 
@@ -11,4 +13,6 @@ Mesh CreateSphereMesh(RenderAPI::Device device,
 Mesh CreatePlaneMesh(RenderAPI::Device device,
                      RenderAPI::CommandPool command_pool);
 bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
-                  Renderer* renderer, Mesh& mesh);
+                  MaterialCache* material_cache, Mesh& mesh,
+                  std::vector<RenderAPI::Image>& image_cache,
+                  std::vector<RenderAPI::ImageView>& image_views_cache);

@@ -5,6 +5,8 @@ glslang(
   srcs = [
     "data/pbr.vert",
     "data/pbr.frag",
+    "data/pbr_no_textures.vert",
+    "data/pbr_no_textures.frag",
     "data/cubemap.vert",
     "data/cubemap.frag",
     "data/tonemap.vert",
@@ -16,7 +18,7 @@ glslang(
 
 cc_binary(
   name = "pbr",
-  srcs = ["main.cpp", "util.h", "util.cpp", "tonemap_pass.h", "tonemap_pass.cpp", ],
+  srcs = ["main.cpp", "util.h", "util.cpp", "tonemap_pass.h", "tonemap_pass.cpp", "MaterialCache.h", "MaterialCache.cpp", "MaterialBits.h"],
   copts = [],
   deps = [
     "@TinyGLTF//:TinyGLTF",

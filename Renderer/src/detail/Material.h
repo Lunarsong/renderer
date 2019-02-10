@@ -31,7 +31,7 @@ class MaterialImpl : public Material {
   RenderAPI::GraphicsPipeline GetPipeline(RenderAPI::RenderPass pass);
   RenderAPI::PipelineLayout GetPipelineLayout();
 
-  MaterialInstance* CreateInstance() const;
+  MaterialInstance* CreateInstance();
   MaterialParams* CreateParams(uint32_t set) const;
 
  private:

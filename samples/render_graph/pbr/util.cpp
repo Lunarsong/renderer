@@ -12,6 +12,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include "MaterialBits.h"
 #include "vertex.h"
 
 Mesh CreateCubeMesh(RenderAPI::Device device,
@@ -348,7 +349,8 @@ RenderAPI::Buffer IndexBufferFromGltf(RenderAPI::Device device,
 
 RenderAPI::ImageView ImageAndImageViewFromGltf(
     RenderAPI::Device device, RenderAPI::CommandPool command_pool,
-    const tinygltf::Image& gltf_image) {
+    const tinygltf::Image& gltf_image,
+    std::vector<RenderAPI::Image>& image_cache) {
   unsigned char* buffer = nullptr;
   const unsigned char* copy_buffer = nullptr;
   size_t buffer_size = 0;
@@ -390,11 +392,14 @@ RenderAPI::ImageView ImageAndImageViewFromGltf(
     delete[] buffer;
   }
 
+  image_cache.emplace_back(image);
   return image_view;
 }
 
 bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
-                  Renderer* renderer, Mesh& mesh) {
+                  MaterialCache* material_cache, Mesh& mesh,
+                  std::vector<RenderAPI::Image>& image_cache,
+                  std::vector<RenderAPI::ImageView>& image_views_cache) {
   tinygltf::Model gltf;
   const char* filename = "samples/render_graph/pbr/data/DamagedHelmet.glb";
   std::string err;
@@ -420,13 +425,21 @@ bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
   std::vector<RenderAPI::ImageView> images;
   images.reserve(gltf.images.size());
   for (const auto& it : gltf.images) {
-    images.push_back(ImageAndImageViewFromGltf(device, command_pool, it));
+    images.push_back(
+        ImageAndImageViewFromGltf(device, command_pool, it, image_cache));
   }
+  image_views_cache.insert(image_views_cache.end(), images.begin(),
+                           images.end());
 
   std::vector<MaterialInstance*> materials;
   materials.reserve(gltf.materials.size());
   for (const auto& mat : gltf.materials) {
-    MaterialInstance* material = renderer->CreatePbrMaterialInstance();
+    uint32_t bits = 0;
+    RenderAPI::ImageView base_color_texture = 0;
+    RenderAPI::ImageView normal_texture = 0;
+    RenderAPI::ImageView occlusion_texture = 0;
+    RenderAPI::ImageView metallic_roughness_texture = 0;
+    RenderAPI::ImageView emissive_texture = 0;
     MetallicRoughnessMaterialGpuData data;
     if (const auto& it = mat.values.find("baseColorFactor");
         it != mat.values.cend()) {
@@ -440,37 +453,51 @@ bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
         it != mat.values.cend()) {
       data.uMetallicRoughness.x = static_cast<float>(it->second.Factor());
     }
-    material->SetParam(1, 5, data);
 
     if (const auto& it = mat.values.find("baseColorTexture");
         it != mat.values.cend()) {
-      material->SetTexture(1, 0, images[it->second.TextureIndex()]);
+      bits |= MetallicRoughnessBits::kHasBaseColorTexture;
+      base_color_texture = images[it->second.TextureIndex()];
     }
     if (const auto& it = mat.additionalValues.find("normalTexture");
         it != mat.additionalValues.cend()) {
-      material->SetTexture(1, 1, images[it->second.TextureIndex()]);
+      bits |= MetallicRoughnessBits::kHasNormalsTexture;
+      normal_texture = images[it->second.TextureIndex()];
     }
     if (const auto& it = mat.additionalValues.find("occlusionTexture");
         it != mat.additionalValues.cend()) {
-      material->SetTexture(1, 2, images[it->second.TextureIndex()]);
+      bits |= MetallicRoughnessBits::kHasOcclusionTexture;
+      occlusion_texture = images[it->second.TextureIndex()];
     }
     if (const auto& it = mat.values.find("metallicRoughnessTexture");
         it != mat.values.cend()) {
-      material->SetTexture(1, 3, images[it->second.TextureIndex()]);
+      bits |= MetallicRoughnessBits::kHasMetallicRoughnessTexture;
+      metallic_roughness_texture = images[it->second.TextureIndex()];
     }
     if (const auto& it = mat.additionalValues.find("emissiveTexture");
         it != mat.additionalValues.cend()) {
-      material->SetTexture(1, 4, images[it->second.TextureIndex()]);
+      bits |= MetallicRoughnessBits::kHashEmissiveTexture;
+      emissive_texture = images[it->second.TextureIndex()];
     }
-
-    /*
-
-
-
-
-
-
-        if (mat.additionalValues.find("emissiveTexture") !=
+    MaterialInstance* material =
+        material_cache->Get("Metallic Roughness", bits)->CreateInstance();
+    material->SetParam(1, 5, data);
+    if (base_color_texture) {
+      material->SetTexture(1, 0, base_color_texture);
+    }
+    if (normal_texture) {
+      material->SetTexture(1, 1, normal_texture);
+    }
+    if (occlusion_texture) {
+      material->SetTexture(1, 2, occlusion_texture);
+    }
+    if (metallic_roughness_texture) {
+      material->SetTexture(1, 3, metallic_roughness_texture);
+    }
+    if (emissive_texture) {
+      material->SetTexture(1, 4, emissive_texture);
+    }
+    /*if (mat.additionalValues.find("emissiveTexture") !=
             mat.additionalValues.end()) {
           material.emissiveTexture =
               &textures[mat.additionalValues["emissiveTexture"].TextureIndex()];

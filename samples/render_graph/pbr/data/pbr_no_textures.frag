@@ -50,19 +50,7 @@ vec4 SRGBToLinear(vec4 srgb) {
 // Easy trick to get tangent-normals to world-space to keep PBR code simplified.
 vec3 GetNormalFromMap()
 {
-	vec3 tangent_normal = texture(uNormalMap, vTexCoords).xyz * 2.0 - 1.0;
-
-	vec3 Q1  = dFdx(vWorldPosition);
-	vec3 Q2  = dFdy(vWorldPosition);
-	vec2 st1 = dFdx(vTexCoords);
-	vec2 st2 = dFdy(vTexCoords);
-
-	vec3 N   = normalize(vNormal);
-	vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-	vec3 B  = -normalize(cross(N, T));
-	mat3 TBN = mat3(T, B, N);
-
-	return normalize(TBN * tangent_normal);
+	return normalize(vNormal);
 }
 // ----------------------------------------------------------------------------
 
@@ -356,7 +344,6 @@ float CalculateShadowTerm(uint cascade_index) {
 
 void main() {
 	vec3 base_color = uBaseColor.rgb;
-	base_color *= SRGBToLinear(texture(uAlbedoMap, vTexCoords).rgb);
 
 	vec3 N = GetNormalFromMap();
 	vec3 V = normalize(uCameraPosition - vWorldPosition);
@@ -364,9 +351,6 @@ void main() {
 
 	float metallic = uMetallicRoughness.x;
 	float roughness = uMetallicRoughness.y;
-	vec3 metallic_roughness_texture = texture(uMetallicRoughnessMap, vTexCoords).rgb;
-	metallic *= metallic_roughness_texture.b;
-	roughness *= clamp(metallic_roughness_texture.g, 0.04, 1.0);
 
 	// Calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
 	// of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow).
@@ -403,11 +387,9 @@ void main() {
 	vec3 kD = 1.0 - F;
 	kD *= 1.0 - metallic;
 	vec3 ambient = (kD * diffuse + specular) * uAmbientOcclusion;
-	ambient *= texture(uAmbientOcclusionMap, vTexCoords).r;
 	vec3 color = ambient + Lo;
 
 	outColor = vec4(color, 1.0);
-	outColor.rgb += SRGBToLinear(texture(uEmissiveMap, vTexCoords).rgb);
 
 #ifdef VISUALIZE_CASCADES
 	const vec3 CascadeColors[SHADOW_MAP_CASCADE_COUNT] = {

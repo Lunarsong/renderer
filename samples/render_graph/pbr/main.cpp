@@ -13,6 +13,8 @@
 
 #include <RenderAPI/RenderAPI.h>
 #include <Renderer/Material.h>
+#include "MaterialBits.h"
+#include "MaterialCache.h"
 #include "render_graph/render_graph.h"
 #include "renderer.h"
 #include "samples/common/camera_controller.h"
@@ -21,12 +23,164 @@
 
 #include "util.h"
 
+namespace {
+struct ObjectsData {
+  glm::mat4 uMatWorldViewProjection;
+  glm::mat4 uMatWorld;
+  glm::mat4 uMatView;
+  glm::mat4 uMatNormalsMatrix;
+};
+
+struct LightDataGPU {
+  glm::mat4 uCascadeViewProjMatrices[4];
+  glm::vec4 uCascadeSplits;
+  alignas(16) glm::vec3 uCameraPosition;
+  alignas(16) glm::vec3 uLightDirection;
+};
+}  // namespace
+
 void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window);
 RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
                                            RenderAPI::RenderPass pass,
                                            RenderAPI::PipelineLayout layout);
 GLFWwindow* InitWindow();
 void Shutdown(GLFWwindow* window);
+
+void CreateMaterials(RenderAPI::Device device, MaterialCache* cache) {
+  // Default data.
+  MetallicRoughnessMaterialGpuData default_material;
+  default_material.uBaseColor =
+      glm::vec4(253.0f, 181.0f, 21.0f, 255.0f) / glm::vec4(255.0f);
+  default_material.uMetallicRoughness = glm::vec2(1.0f, 0.2f);
+  default_material.uAmbientOcclusion = 0.25f;
+
+  // PBR Pipeline
+  auto vert = util::ReadFile("samples/render_graph/pbr/data/pbr.vert.spv");
+  auto frag = util::ReadFile("samples/render_graph/pbr/data/pbr.frag.spv");
+  Material::Builder builder(device);
+  builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
+                     vert.size());
+  builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
+                       frag.size());
+  builder.Sampler(
+      "cubemap",
+      RenderAPI::SamplerCreateInfo(
+          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
+          RenderAPI::SamplerMipmapMode::kLinear,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f));
+  builder.Sampler(
+      "shadow",
+      RenderAPI::SamplerCreateInfo(
+          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
+          RenderAPI::SamplerMipmapMode::kLinear,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f, true,
+          RenderAPI::CompareOp::kLessOrEqual));
+  // Transform data.
+  builder.Uniform(0, 0, RenderAPI::ShaderStageFlagBits::kVertexBit,
+                  sizeof(ObjectsData));
+  // Material data.
+  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Uniform(1, 5, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(MetallicRoughnessMaterialGpuData), &default_material);
+  // Light data.
+  builder.Uniform(2, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(LightDataGPU));
+  builder.Texture(2, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, "shadow");
+  builder.SetDescriptorFrequency(2, DescriptorFrequency::kUndefined);
+
+  builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
+  builder.DynamicState(RenderAPI::DynamicState::kViewport);
+  builder.DynamicState(RenderAPI::DynamicState::kScissor);
+  builder.DepthTest(true);
+  builder.DepthWrite(true);
+  builder.CullMode(RenderAPI::CullModeFlagBits::kNone);
+  builder.AddVertexAttribute(VertexAttribute::kPosition);
+  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
+  builder.AddVertexAttribute(VertexAttribute::kColor);
+  builder.AddVertexAttribute(VertexAttribute::kNormals);
+  cache->Cache("Metallic Roughness",
+               MetallicRoughnessBits::kHasMetallicRoughnessTexture |
+                   MetallicRoughnessBits::kHasBaseColorTexture |
+                   MetallicRoughnessBits::kHashEmissiveTexture |
+                   MetallicRoughnessBits::kHasNormalsTexture |
+                   MetallicRoughnessBits::kHasOcclusionTexture,
+               builder.Build());
+
+  // PBR Pipeline
+  vert =
+      util::ReadFile("samples/render_graph/pbr/data/pbr_no_textures.vert.spv");
+  frag =
+      util::ReadFile("samples/render_graph/pbr/data/pbr_no_textures.frag.spv");
+  builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
+                     vert.size());
+  builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
+                       frag.size());
+  builder.Sampler(
+      "cubemap",
+      RenderAPI::SamplerCreateInfo(
+          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
+          RenderAPI::SamplerMipmapMode::kLinear,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f));
+  builder.Sampler(
+      "shadow",
+      RenderAPI::SamplerCreateInfo(
+          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
+          RenderAPI::SamplerMipmapMode::kLinear,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge,
+          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f, true,
+          RenderAPI::CompareOp::kLessOrEqual));
+  // Transform data.
+  builder.Uniform(0, 0, RenderAPI::ShaderStageFlagBits::kVertexBit,
+                  sizeof(ObjectsData));
+  // Material data.
+  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Uniform(1, 5, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(MetallicRoughnessMaterialGpuData), &default_material);
+  // Light data.
+  builder.Uniform(2, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  sizeof(LightDataGPU));
+  builder.Texture(2, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
+                  "cubemap");
+  builder.Texture(2, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, "shadow");
+  builder.SetDescriptorFrequency(2, DescriptorFrequency::kUndefined);
+
+  builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
+  builder.DynamicState(RenderAPI::DynamicState::kViewport);
+  builder.DynamicState(RenderAPI::DynamicState::kScissor);
+  builder.DepthTest(true);
+  builder.DepthWrite(true);
+  builder.CullMode(RenderAPI::CullModeFlagBits::kNone);
+  builder.AddVertexAttribute(VertexAttribute::kPosition);
+  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
+  builder.AddVertexAttribute(VertexAttribute::kColor);
+  builder.AddVertexAttribute(VertexAttribute::kNormals);
+  cache->Cache("Metallic Roughness", 0, builder.Build());
+}
 
 void Run() {
   std::cout << "Hello Vulkan" << std::endl;
@@ -60,20 +214,27 @@ void Run() {
                     command_pool, cubemap_image, cubemap_view);
 
   Renderer* renderer = new Renderer(device);
+  MaterialCache* materials = new MaterialCache();
+  CreateMaterials(device, materials);
+  renderer->SetPbrMaterial(materials->Get("Metallic Roughness", 0));
   Scene scene;
   /*scene.meshes.emplace_back(CreateSphereMesh(device, command_pool));
   scene.meshes.back().primitives[0].material =
       renderer->CreatePbrMaterialInstance();*/
   scene.meshes.emplace_back(CreatePlaneMesh(device, command_pool));
   scene.meshes.back().primitives[0].material =
-      renderer->CreatePbrMaterialInstance();
+      materials->Get("Metallic Roughness", 0)->CreateInstance();
   MetallicRoughnessMaterialGpuData mat;
   mat.uBaseColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
   mat.uMetallicRoughness = glm::vec2(0.0f, 0.5f);
   mat.uAmbientOcclusion = 0.2f;
   scene.meshes.back().primitives[0].material->SetParam(1, 5, mat);
+
+  std::vector<RenderAPI::Image> image_cache;
+  std::vector<RenderAPI::ImageView> image_views_cache;
   Mesh mesh;
-  MeshFromGLTF(device, command_pool, renderer, mesh);
+  MeshFromGLTF(device, command_pool, materials, mesh, image_cache,
+               image_views_cache);
   scene.meshes.push_back(std::move(mesh));
 
   RenderAPI::Image irradiance_image;
@@ -137,6 +298,14 @@ void Run() {
   render_graph_.Destroy();
   DestroyScene(device, scene);
   delete renderer;
+  delete materials;
+
+  for (auto& it : image_views_cache) {
+    RenderAPI::DestroyImageView(device, it);
+  }
+  for (auto& it : image_cache) {
+    RenderAPI::DestroyImage(it);
+  }
 
   renderer->DestroyView(&view);
   DestroyTonemapPass(device, tonemap);

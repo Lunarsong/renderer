@@ -99,11 +99,7 @@ const RenderAPI::DescriptorSet* MaterialInstanceImpl::DescriptorSet(
     uint32_t set) const {
   return descriptors_[set].set;
 }
-
-RenderAPI::ImageView MaterialInstanceImpl::GetTexture(uint32_t set,
-                                                      uint32_t binding) {
-  return descriptors_[set].params[binding].texture;
-}
+Material* MaterialInstanceImpl::GetMaterial() { return material_; }
 
 MaterialInstanceImpl::~MaterialInstanceImpl() {
   for (auto& set : descriptors_) {
@@ -132,7 +128,6 @@ const RenderAPI::DescriptorSet* MaterialInstance::DescriptorSet(
     uint32_t set) const {
   return upcast(this)->DescriptorSet(set);
 }
-RenderAPI::ImageView MaterialInstance::GetTexture(uint32_t set,
-                                                  uint32_t binding) {
-  return upcast(this)->GetTexture(set, binding);
+Material* MaterialInstance::GetMaterial() {
+  return upcast(this)->GetMaterial();
 }

@@ -25,14 +25,6 @@ struct LightDataGPU {
   alignas(16) glm::vec3 uLightDirection;
 };
 
-struct PbrPushConstants {
-  float uHasBaseColorTexture;
-  float uHasMetallicRoughnessTexture;
-  float uHasNormalTexture;
-  float uHasOcclusionTexture;
-  float uHasEmissiveTexture;
-};
-
 std::vector<char> ReadFile(const std::string& filename) {
   std::ifstream file(filename, std::ios::ate | std::ios::binary);
   if (!file.is_open()) {
@@ -175,81 +167,11 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   skybox_builder.AddVertexAttribute(VertexAttribute::kPosition);
   skybox_material_ = skybox_builder.Build();
 
-  // PBR Pipeline
-  vert = ReadFile("samples/render_graph/pbr/data/pbr.vert.spv");
-  frag = ReadFile("samples/render_graph/pbr/data/pbr.frag.spv");
-  Material::Builder builder(device);
-  builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
-                     vert.size());
-  builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
-                       frag.size());
-  builder.PushConstant(RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                       sizeof(PbrPushConstants));
-  builder.Sampler(
-      "cubemap",
-      RenderAPI::SamplerCreateInfo(
-          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
-          RenderAPI::SamplerMipmapMode::kLinear,
-          RenderAPI::SamplerAddressMode::kClampToEdge,
-          RenderAPI::SamplerAddressMode::kClampToEdge,
-          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f));
-  builder.Sampler(
-      "shadow",
-      RenderAPI::SamplerCreateInfo(
-          RenderAPI::SamplerFilter::kLinear, RenderAPI::SamplerFilter::kLinear,
-          RenderAPI::SamplerMipmapMode::kLinear,
-          RenderAPI::SamplerAddressMode::kClampToEdge,
-          RenderAPI::SamplerAddressMode::kClampToEdge,
-          RenderAPI::SamplerAddressMode::kClampToEdge, 0.0f, 9.0f, true,
-          RenderAPI::CompareOp::kLessOrEqual));
-  // Transform data.
-  builder.Uniform(0, 0, RenderAPI::ShaderStageFlagBits::kVertexBit,
-                  sizeof(ObjectsData));
-  // Material data.
-  MetallicRoughnessMaterialGpuData default_material;
-  default_material.uBaseColor =
-      glm::vec4(253.0f, 181.0f, 21.0f, 255.0f) / glm::vec4(255.0f);
-  default_material.uMetallicRoughness = glm::vec2(1.0f, 0.2f);
-  default_material.uAmbientOcclusion = 0.25f;
-
-  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Uniform(1, 5, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  sizeof(MetallicRoughnessMaterialGpuData), &default_material);
-  // Light data.
-  builder.Uniform(2, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  sizeof(LightDataGPU));
-  builder.Texture(2, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  "cubemap");
-  builder.Texture(2, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  "cubemap");
-  builder.Texture(2, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                  "cubemap");
-  builder.Texture(2, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, "shadow");
-  builder.SetDescriptorFrequency(2, DescriptorFrequency::kUndefined);
-
-  builder.Viewport(RenderAPI::Viewport(0.0f, 0.0f, 1920, 1200));
-  builder.DynamicState(RenderAPI::DynamicState::kViewport);
-  builder.DynamicState(RenderAPI::DynamicState::kScissor);
-  builder.DepthTest(true);
-  builder.DepthWrite(true);
-  builder.CullMode(RenderAPI::CullModeFlagBits::kNone);
-  builder.AddVertexAttribute(VertexAttribute::kPosition);
-  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
-  builder.AddVertexAttribute(VertexAttribute::kColor);
-  builder.AddVertexAttribute(VertexAttribute::kNormals);
-
-  pbr_material_ = builder.Build();
-
   // Create the shadow pass.
   shadow_pass_ = CascadeShadowsPass::Create(device);
 }
 
 Renderer::~Renderer() {
-  Material::Destroy(pbr_material_);
   Material::Destroy(skybox_material_);
   CascadeShadowsPass::Destroy(device_, shadow_pass_);
 
@@ -337,12 +259,6 @@ void Renderer::Render(RenderContext* context, View* view, Scene& scene) {
   RenderAPI::CmdDrawIndexed(cmd, 36, 1, 0, 0, 0);
 
   // Draw the scene.
-  RenderAPI::CmdBindPipeline(cmd, pbr_material_->GetPipeline(context->pass));
-  RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
-  RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
-  RenderAPI::CmdBindDescriptorSets(cmd, 0, pbr_material_->GetPipelineLayout(),
-                                   2, 1, view->light_params->DescriptorSet());
-
   ObjectsData objects_data;
   objects_data.uMatView = camera_view;
   size_t instance_id = 0;
@@ -355,31 +271,22 @@ void Renderer::Render(RenderContext* context, View* view, Scene& scene) {
         glm::transpose(glm::inverse(objects_data.uMatWorld));
     for (const auto& primitive : mesh.primitives) {
       assert(primitive.material);
-      primitive.material->SetParam(0, 0, objects_data);
-      primitive.material->Commit();
+      Material* material = primitive.material->GetMaterial();
+      MaterialInstance* instance = primitive.material;
 
-      PbrPushConstants push_constants;
-      push_constants.uHasBaseColorTexture =
-          primitive.material->GetTexture(1, 0) ? 1.0f : 0.0f;
-      push_constants.uHasNormalTexture =
-          primitive.material->GetTexture(1, 1) ? 1.0f : 0.0f;
-      push_constants.uHasOcclusionTexture =
-          primitive.material->GetTexture(1, 2) ? 1.0f : 0.0f;
-      push_constants.uHasMetallicRoughnessTexture =
-          primitive.material->GetTexture(1, 3) ? 1.0f : 0.0f;
-      push_constants.uHasEmissiveTexture =
-          primitive.material->GetTexture(1, 4) ? 1.0f : 0.0f;
+      RenderAPI::CmdBindPipeline(cmd, material->GetPipeline(context->pass));
+      RenderAPI::CmdSetScissor(cmd, 0, 1, &scissor);
+      RenderAPI::CmdSetViewport(cmd, 0, 1, &view->viewport);
+      RenderAPI::CmdBindDescriptorSets(cmd, 0, material->GetPipelineLayout(), 2,
+                                       1, view->light_params->DescriptorSet());
 
-      RenderAPI::CmdPushConstants(cmd, pbr_material_->GetPipelineLayout(),
-                                  RenderAPI::ShaderStageFlagBits::kFragmentBit,
-                                  0, sizeof(PbrPushConstants), &push_constants);
+      instance->SetParam(0, 0, objects_data);
+      instance->Commit();
 
-      RenderAPI::CmdBindDescriptorSets(cmd, 0,
-                                       pbr_material_->GetPipelineLayout(), 0, 1,
-                                       primitive.material->DescriptorSet(0));
-      RenderAPI::CmdBindDescriptorSets(cmd, 0,
-                                       pbr_material_->GetPipelineLayout(), 1, 1,
-                                       primitive.material->DescriptorSet(1));
+      RenderAPI::CmdBindDescriptorSets(cmd, 0, material->GetPipelineLayout(), 0,
+                                       1, instance->DescriptorSet(0));
+      RenderAPI::CmdBindDescriptorSets(cmd, 0, material->GetPipelineLayout(), 1,
+                                       1, instance->DescriptorSet(1));
 
       RenderAPI::CmdBindVertexBuffers(cmd, 0, 1, &primitive.vertex_buffer);
       RenderAPI::CmdBindIndexBuffer(cmd, primitive.index_buffer,
@@ -443,6 +350,4 @@ void Renderer::DestroyView(View** view) {
   *view = nullptr;
 }
 
-MaterialInstance* Renderer::CreatePbrMaterialInstance() {
-  return pbr_material_->CreateInstance();
-}
+void Renderer::SetPbrMaterial(Material* material) { pbr_material_ = material; }

@@ -18,7 +18,7 @@ class Renderer {
   View* CreateView();
   void DestroyView(View** view);
 
-  MaterialInstance* CreatePbrMaterialInstance();
+  void SetPbrMaterial(Material* material);
 
  private:
   RenderAPI::Device device_;
