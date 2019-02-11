@@ -366,7 +366,7 @@ float CalculateShadowTerm(uint cascade_index) {
 void main() {
 	vec3 base_color = uBaseColor.rgb;
 	if (uHasAlbedoTexture) {
-	base_color *= SRGBToLinear(texture(uAlbedoMap, vTexCoords).rgb);
+		base_color *= SRGBToLinear(texture(uAlbedoMap, vTexCoords).rgb);
 	}
 
 	vec3 N = GetNormals();
