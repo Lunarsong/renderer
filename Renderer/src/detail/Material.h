@@ -44,6 +44,13 @@ class MaterialImpl : public Material {
       pipelines_;
   RenderAPI::DescriptorSetPool pool_;
 
+  // Shader specialization.
+  RenderAPI::SpecializationInfo vert_specialization_;
+  RenderAPI::SpecializationInfo frag_specialization_;
+  std::vector<RenderAPI::SpecializationMapEntry> vert_entries;
+  std::vector<RenderAPI::SpecializationMapEntry> frag_entries;
+  std::vector<uint8_t> specialization_data_;
+
   friend class Material::Builder;
   MaterialImpl() = default;
 };

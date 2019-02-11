@@ -56,6 +56,11 @@ struct Material::BuilderDetails {
   std::vector<VertexAttribute> attributes;
   std::unordered_map<std::string, SamplerInfo> samplers;
   uint32_t num_uniform_buffers = 0;
+
+  std::vector<uint8_t> frag_specialization_data;
+  std::vector<uint8_t> vert_specialization_data;
+  std::vector<RenderAPI::SpecializationMapEntry> frag_specialization_entries;
+  std::vector<RenderAPI::SpecializationMapEntry> vert_specialization_entries;
 };
 
 Material::Builder::Builder(RenderAPI::Device device) { impl_->device = device; }
@@ -71,6 +76,34 @@ Material::Builder& Material::Builder::FragmentCode(const uint32_t* code,
                                                    size_t code_size) {
   impl_->info.fragment.code = code;
   impl_->info.fragment.code_size = code_size;
+  return *this;
+}
+
+Material::Builder& Material::Builder::Specialization(
+    RenderAPI::ShaderStageFlags stage, uint32_t id, size_t size,
+    const void* data) {
+  std::vector<uint8_t>* data_vector;
+  std::vector<RenderAPI::SpecializationMapEntry>* entries;
+  if (stage == RenderAPI::ShaderStageFlagBits::kFragmentBit) {
+    data_vector = &impl_->frag_specialization_data;
+    entries = &impl_->frag_specialization_entries;
+  } else if (stage == RenderAPI::ShaderStageFlagBits::kVertexBit) {
+    data_vector = &impl_->vert_specialization_data;
+    entries = &impl_->vert_specialization_entries;
+  } else {
+    return *this;
+  }
+
+  // Copy the data.
+  const size_t offset = data_vector->size();
+  data_vector->resize(offset + size);
+  memcpy(data_vector->data() + offset, data, size);
+
+  // Add the entry.
+  RenderAPI::SpecializationMapEntry entry = {id, static_cast<uint32_t>(offset),
+                                             size};
+  entries->emplace_back(std::move(entry));
+
   return *this;
 }
 
@@ -323,6 +356,46 @@ Material* Material::Builder::Build() {
   material->info_ = std::move(impl_->info);
   material->descriptors_ = std::move(impl_->descriptors);
   material->samplers_ = std::move(samplers);
+
+  // Handle specialization.
+  const size_t vert_specialization_size =
+      impl_->vert_specialization_data.size();
+  const size_t frag_specialization_size =
+      impl_->frag_specialization_data.size();
+  material->specialization_data_.resize(vert_specialization_size +
+                                        frag_specialization_size);
+  const size_t vert_specialization_offset = 0;
+  const size_t frag_specialization_offset =
+      impl_->vert_specialization_data.size();
+  if (!impl_->vert_specialization_data.empty()) {
+    memcpy(material->specialization_data_.data(),
+           impl_->vert_specialization_data.data(), vert_specialization_size);
+  }
+  if (!impl_->frag_specialization_data.empty()) {
+    memcpy(material->specialization_data_.data() + frag_specialization_offset,
+           impl_->frag_specialization_data.data(), frag_specialization_size);
+  }
+
+  if (!impl_->vert_specialization_entries.empty()) {
+    material->vert_entries = std::move(impl_->vert_specialization_entries);
+    material->vert_specialization_.map_entries = material->vert_entries.data();
+    material->vert_specialization_.map_entry_count =
+        material->vert_entries.size();
+    material->vert_specialization_.data_size = vert_specialization_size;
+    material->vert_specialization_.data =
+        material->specialization_data_.data() + vert_specialization_offset;
+    material->info_.vertex.specialization = &material->vert_specialization_;
+  }
+  if (!impl_->frag_specialization_entries.empty()) {
+    material->frag_entries = std::move(impl_->frag_specialization_entries);
+    material->frag_specialization_.map_entries = material->frag_entries.data();
+    material->frag_specialization_.map_entry_count =
+        material->frag_entries.size();
+    material->frag_specialization_.data_size = frag_specialization_size;
+    material->frag_specialization_.data =
+        material->specialization_data_.data() + frag_specialization_offset;
+    material->info_.fragment.specialization = &material->frag_specialization_;
+  }
 
   // Clean the builder for reuse.
   Material::BuilderDetails clean;

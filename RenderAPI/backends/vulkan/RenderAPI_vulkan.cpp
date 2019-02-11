@@ -404,12 +404,17 @@ GraphicsPipeline CreateGraphicsPipeline(
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = vertex;
   vertShaderStageInfo.pName = "main";
+  vertShaderStageInfo.pSpecializationInfo =
+      reinterpret_cast<const VkSpecializationInfo*>(info.vertex.specialization);
   VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
   fragShaderStageInfo.sType =
       VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = fragment;
   fragShaderStageInfo.pName = "main";
+  fragShaderStageInfo.pSpecializationInfo =
+      reinterpret_cast<const VkSpecializationInfo*>(
+          info.fragment.specialization);
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
                                                     fragShaderStageInfo};
 

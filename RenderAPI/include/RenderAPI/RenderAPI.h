@@ -62,10 +62,22 @@ TextureFormat GetSwapChainImageFormat(SwapChain swapchain);
 ImageView GetSwapChainImageView(SwapChain swapchain, uint32_t index);
 
 // Graphics Pipeline.
+struct SpecializationMapEntry {
+  uint32_t constantID;
+  uint32_t offset = 0;
+  size_t size;
+};
+struct SpecializationInfo {
+  uint32_t map_entry_count = 0;
+  const SpecializationMapEntry* map_entries = nullptr;
+  size_t data_size = 0;
+  const void* data = nullptr;
+};
 struct ShaderCreateInfo {
   size_t code_size = 0;
   const uint32_t* code = nullptr;
   ShaderModule module = 0;
+  SpecializationInfo* specialization = nullptr;
 };
 
 struct PipelineLayoutCreateInfo {

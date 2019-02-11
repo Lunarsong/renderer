@@ -62,6 +62,11 @@ void CreateMaterials(RenderAPI::Device device, MaterialCache* cache) {
                      vert.size());
   builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),
                        frag.size());
+  builder.Specialization(RenderAPI::ShaderStageFlagBits::kFragmentBit, 0, true);
+  builder.Specialization(RenderAPI::ShaderStageFlagBits::kFragmentBit, 1, true);
+  builder.Specialization(RenderAPI::ShaderStageFlagBits::kFragmentBit, 2, true);
+  builder.Specialization(RenderAPI::ShaderStageFlagBits::kFragmentBit, 3, true);
+  builder.Specialization(RenderAPI::ShaderStageFlagBits::kFragmentBit, 4, true);
   builder.Sampler(
       "cubemap",
       RenderAPI::SamplerCreateInfo(

@@ -55,6 +55,11 @@ class Material {
     // Shader:
     Builder& VertexCode(const uint32_t* code, size_t code_size);
     Builder& FragmentCode(const uint32_t* code, size_t code_size);
+    Builder& Specialization(RenderAPI::ShaderStageFlags stage, uint32_t id,
+                            size_t size, const void* data);
+    template <typename T>
+    Builder& Specialization(RenderAPI::ShaderStageFlags stage, uint32_t id,
+                            const T& data);
 
     // State:
     Builder& Blending(BlendMode mode);
@@ -87,3 +92,9 @@ class Material {
     ~Builder() noexcept;
   };
 };
+
+template <typename T>
+Material::Builder& Material::Builder::Specialization(
+    RenderAPI::ShaderStageFlags stage, uint32_t id, const T& data) {
+  return Specialization(stage, id, sizeof(T), &data);
+}
