@@ -8,7 +8,7 @@ I currently have a minimal abstraction for Vulkan. The idea was to create someth
 
 # Requirements
 - Windows.
-- [Vulkan SDK Version 1.1.92.1](https://vulkan.lunarg.com/sdk/home#sdk/downloadConfirm/1.1.92.1/windows/VulkanSDK-1.1.92.1-Installer.exe), installed at C:/VulkanSDK/1.1.92.1
+- [Vulkan SDK Version 1.1.97.0](https://vulkan.lunarg.com/sdk/home#sdk/downloadConfirm/1.1.97.0/windows/VulkanSDK-1.1.97.0-Installer.exe), installed at C:/VulkanSDK/1.1.97.0
 - [Bazel](https://bazel.build/)
 
 Recommend using *--experimental_enable_runfiles* with bazel, however it requires tweaking:
