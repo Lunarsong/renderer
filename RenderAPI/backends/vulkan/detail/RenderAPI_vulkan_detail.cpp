@@ -230,11 +230,17 @@ VkDevice CreateLogicalDevice(
   queueCreateInfo[1].queueCount = 1;
   queueCreateInfo[1].pQueuePriorities = &queuePriority;
 
+  VkPhysicalDeviceDescriptorIndexingFeaturesEXT extended_features = {};
+  extended_features.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+  extended_features.descriptorBindingPartiallyBound = VK_TRUE;
+
   VkPhysicalDeviceFeatures deviceFeatures = {};
   deviceFeatures.depthClamp = VK_TRUE;
 
   VkDeviceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+  createInfo.pNext = &extended_features;
   createInfo.pQueueCreateInfos = queueCreateInfo;
   createInfo.queueCreateInfoCount =
       (indices.graphics == indices.presentation) ? 1 : 2;

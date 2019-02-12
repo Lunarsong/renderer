@@ -975,10 +975,41 @@ DescriptorSetLayout CreateDescriptorSetLayout(
         static_cast<VkShaderStageFlags>(info_binding.stages);
     vk_binding.pImmutableSamplers = nullptr;
   }
+
+  assert(info.bindings.size() <= 20);
+  VkDescriptorBindingFlagsEXT binding_flag_bits_ext[20] = {
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
+      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT};
+
+  VkDescriptorSetLayoutBindingFlagsCreateInfoEXT binding_ext = {};
+  binding_ext.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+  binding_ext.bindingCount = static_cast<uint32_t>(vk_bindings.size());
+  binding_ext.pBindingFlags = binding_flag_bits_ext;
+
   VkDescriptorSetLayoutCreateInfo layoutInfo = {};
   layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   layoutInfo.bindingCount = static_cast<uint32_t>(vk_bindings.size());
   layoutInfo.pBindings = vk_bindings.data();
+  layoutInfo.pNext = &binding_ext;
 
   if (vkCreateDescriptorSetLayout(layout.device, &layoutInfo, nullptr,
                                   &layout.layout) != VK_SUCCESS) {

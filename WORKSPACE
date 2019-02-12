@@ -22,7 +22,7 @@ new_git_repository(
     build_file = "third_party/glfw.BUILD",
 )
 
-VK_SDK_PATH = "C:/VulkanSDK/1.1.92.1"
+VK_SDK_PATH = "C:/VulkanSDK/1.1.97.0"
 new_local_repository(
     name = "vulkan",
     path = VK_SDK_PATH,

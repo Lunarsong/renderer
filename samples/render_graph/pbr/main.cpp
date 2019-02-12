@@ -126,10 +126,6 @@ void CreateMaterials(RenderAPI::Device device, MaterialCache* cache) {
                builder.Build());
 
   // PBR Pipeline
-  vert =
-      util::ReadFile("samples/render_graph/pbr/data/pbr_no_textures.vert.spv");
-  frag =
-      util::ReadFile("samples/render_graph/pbr/data/pbr_no_textures.frag.spv");
   builder.VertexCode(reinterpret_cast<const uint32_t*>(vert.data()),
                      vert.size());
   builder.FragmentCode(reinterpret_cast<const uint32_t*>(frag.data()),

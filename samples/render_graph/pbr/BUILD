@@ -5,8 +5,6 @@ glslang(
   srcs = [
     "data/pbr.vert",
     "data/pbr.frag",
-    "data/pbr_no_textures.vert",
-    "data/pbr_no_textures.frag",
     "data/cubemap.vert",
     "data/cubemap.frag",
     "data/tonemap.vert",
