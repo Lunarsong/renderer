@@ -347,10 +347,18 @@ enum ShaderStageFlagBits {
 }  // namespace ShaderStageFlagBits
 using ShaderStageFlags = uint32_t;
 
+namespace DescriptorBindingFlag {
+constexpr uint32_t kUpdateAfterBindEXT = 0x00000001;
+constexpr uint32_t kUpdateUnusedWhilePendingEXT = 0x00000002;
+constexpr uint32_t kPartiallyBoundEXT = 0x00000004;
+constexpr uint32_t kVariableDescriptorCountEXT = 0x00000008;
+}  // namespace DescriptorBindingFlag
+using DescriptorBindingFlags = uint32_t;
 struct DescriptorSetLayoutBinding {
   DescriptorType type;
   uint32_t count = 0;
   ShaderStageFlags stages;
+  DescriptorBindingFlags flags = 0;
 
   DescriptorSetLayoutBinding() = default;
   DescriptorSetLayoutBinding(DescriptorType type, uint32_t count,

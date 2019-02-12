@@ -166,7 +166,8 @@ Material::Builder& Material::Builder::PushConstant(
 
 Material::Builder& Material::Builder::Uniform(
     uint32_t set, uint32_t binding, RenderAPI::ShaderStageFlags stages,
-    size_t size, const void* default_data) {
+    size_t size, const void* default_data,
+    RenderAPI::DescriptorBindingFlags flags) {
   ++impl_->num_uniform_buffers;
   if (impl_->descriptors.size() <= set) {
     impl_->descriptors.resize(set + 1);
@@ -178,6 +179,7 @@ Material::Builder& Material::Builder::Uniform(
   uniform.type = RenderAPI::DescriptorType::kUniformBuffer;
   uniform.uniform.size = size;
   uniform.stages = stages;
+  uniform.flags = flags;
   if (default_data) {
     uniform.uniform.data = std::make_unique<uint8_t[]>(size);
     memcpy(uniform.uniform.data.get(), default_data, size);
@@ -194,7 +196,7 @@ Material::Builder& Material::Builder::Uniform(
 
 Material::Builder& Material::Builder::Texture(
     uint32_t set, uint32_t binding, RenderAPI::ShaderStageFlags stages,
-    const char* sampler) {
+    const char* sampler, RenderAPI::DescriptorBindingFlags flags) {
   if (impl_->descriptors.size() <= set) {
     impl_->descriptors.resize(set + 1);
   }
@@ -204,6 +206,7 @@ Material::Builder& Material::Builder::Texture(
   }
   bindings[binding].type = RenderAPI::DescriptorType::kCombinedImageSampler;
   bindings[binding].stages = stages;
+  bindings[binding].flags = flags;
 
   impl_->texture_to_sampler.emplace_back(set, binding, stages, sampler);
 
@@ -300,6 +303,7 @@ Material* Material::Builder::Build() {
       descriptor_info.bindings[binding].count = 1;
       descriptor_info.bindings[binding].stages = it.stages;
       descriptor_info.bindings[binding].type = it.type;
+      descriptor_info.bindings[binding].flags = it.flags;
       ++binding;
     }
     descriptor.layout =

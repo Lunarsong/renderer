@@ -962,6 +962,9 @@ DescriptorSetLayout CreateDescriptorSetLayout(
   DescriptorSetLayoutVk layout;
   layout.device = devices_[device].device;
 
+  assert(info.bindings.size() <= 20);
+  VkDescriptorBindingFlagsEXT binding_flag_bits_ext[20] = {0};
+
   std::vector<VkDescriptorSetLayoutBinding> vk_bindings(info.bindings.size());
   for (uint32_t binding = 0;
        binding < static_cast<uint32_t>(info.bindings.size()); ++binding) {
@@ -974,30 +977,8 @@ DescriptorSetLayout CreateDescriptorSetLayout(
     vk_binding.stageFlags =
         static_cast<VkShaderStageFlags>(info_binding.stages);
     vk_binding.pImmutableSamplers = nullptr;
+    binding_flag_bits_ext[binding] = info_binding.flags;
   }
-
-  assert(info.bindings.size() <= 20);
-  VkDescriptorBindingFlagsEXT binding_flag_bits_ext[20] = {
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT,
-      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT};
 
   VkDescriptorSetLayoutBindingFlagsCreateInfoEXT binding_ext = {};
   binding_ext.sType =

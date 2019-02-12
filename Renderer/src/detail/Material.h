@@ -15,6 +15,7 @@ struct UniformData {
 struct DescriptorData {
   RenderAPI::DescriptorType type;
   RenderAPI::ShaderStageFlags stages;
+  RenderAPI::DescriptorBindingFlags flags = 0;
   RenderAPI::Sampler sampler;
   UniformData uniform;
 };

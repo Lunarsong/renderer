@@ -78,10 +78,12 @@ class Material {
                           uint32_t offset = kOffsetNext);
     Builder& Uniform(uint32_t set, uint32_t binding,
                      RenderAPI::ShaderStageFlags stages, size_t size,
-                     const void* default_data = nullptr);
+                     const void* default_data = nullptr,
+                     RenderAPI::DescriptorBindingFlags flags = 0);
     Builder& Texture(uint32_t set, uint32_t binding,
                      RenderAPI::ShaderStageFlags stages,
-                     const char* sampler = nullptr);
+                     const char* sampler = nullptr,
+                     RenderAPI::DescriptorBindingFlags flags = 0);
     Builder& SetDescriptorFrequency(uint32_t set,
                                     DescriptorFrequency frequency);
     Builder& Sampler(const char* name, RenderAPI::SamplerCreateInfo info =

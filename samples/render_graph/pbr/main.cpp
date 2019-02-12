@@ -151,11 +151,16 @@ void CreateMaterials(RenderAPI::Device device, MaterialCache* cache) {
   builder.Uniform(0, 0, RenderAPI::ShaderStageFlagBits::kVertexBit,
                   sizeof(ObjectsData));
   // Material data.
-  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit);
-  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit);
+  builder.Texture(1, 0, RenderAPI::ShaderStageFlagBits::kFragmentBit, nullptr,
+                  RenderAPI::DescriptorBindingFlag::kPartiallyBoundEXT);
+  builder.Texture(1, 1, RenderAPI::ShaderStageFlagBits::kFragmentBit, nullptr,
+                  RenderAPI::DescriptorBindingFlag::kPartiallyBoundEXT);
+  builder.Texture(1, 2, RenderAPI::ShaderStageFlagBits::kFragmentBit, nullptr,
+                  RenderAPI::DescriptorBindingFlag::kPartiallyBoundEXT);
+  builder.Texture(1, 3, RenderAPI::ShaderStageFlagBits::kFragmentBit, nullptr,
+                  RenderAPI::DescriptorBindingFlag::kPartiallyBoundEXT);
+  builder.Texture(1, 4, RenderAPI::ShaderStageFlagBits::kFragmentBit, nullptr,
+                  RenderAPI::DescriptorBindingFlag::kPartiallyBoundEXT);
   builder.Uniform(1, 5, RenderAPI::ShaderStageFlagBits::kFragmentBit,
                   sizeof(MetallicRoughnessMaterialGpuData), &default_material);
   // Light data.
