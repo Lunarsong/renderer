@@ -31,7 +31,7 @@ struct QuadPass {
 
   RenderAPI::DescriptorSetLayout descriptor_layout;
   RenderAPI::DescriptorSetPool descriptor_set_pool;
-  BufferedDescriptorSet descriptor_sets;
+  RenderUtils::BufferedDescriptorSet descriptor_sets;
 
   RenderAPI::PipelineLayout pipeline_layout;
   RenderAPI::GraphicsPipeline pipeline;
@@ -360,13 +360,16 @@ RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
   info.fragment.code_size = frag.size();
-  info.vertex_input.resize(1);
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec2, 0});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec2, sizeof(float) * 2});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 4});
+  info.vertex_input.attributes.emplace_back(
+      0, 0, RenderAPI::TextureFormat::kR32G32_SFLOAT, 0);
+  info.vertex_input.attributes.emplace_back(
+      1, 0, RenderAPI::TextureFormat::kR32G32_SFLOAT,
+      static_cast<uint32_t>(sizeof(float) * 2));
+  info.vertex_input.attributes.emplace_back(
+      2, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+      static_cast<uint32_t>(sizeof(float) * 4));
+  info.vertex_input.bindings.emplace_back(
+      0, static_cast<uint32_t>(sizeof(float) * 7));
   info.layout = layout;
 
   info.states.viewport.viewports.emplace_back(

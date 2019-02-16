@@ -30,17 +30,38 @@ using ImageView = HandleType;
 using Sampler = HandleType;
 using ShaderModule = HandleType;
 
-enum class VertexAttributeType { kFloat, kVec2, kVec3, kVec4 };
-
-struct VertexAttribute {
-  VertexAttributeType type;
+struct VertexInputAttribute {
+  uint32_t location;
+  uint32_t binding;
+  TextureFormat format;
   uint32_t offset;
+
+  VertexInputAttribute() = default;
+  VertexInputAttribute(uint32_t location, uint32_t binding,
+                       TextureFormat format, uint32_t offset)
+      : location(location), binding(binding), format(format), offset(offset) {}
 };
-using VertexLayout = std::vector<VertexAttribute>;
+
+enum class VertexInputRate {
+  kVertex = 0,
+  kInstance = 1,
+};
+
 struct VertexInputBinding {
-  VertexLayout layout;
+  uint32_t binding;
+  uint32_t stride;
+  VertexInputRate input_rate = VertexInputRate::kVertex;
+
+  VertexInputBinding() = default;
+  VertexInputBinding(uint32_t binding, uint32_t stride,
+                     VertexInputRate input_rate = VertexInputRate::kVertex)
+      : binding(binding), stride(stride), input_rate(input_rate) {}
 };
-using VertexInputBindings = std::vector<VertexInputBinding>;
+
+struct VertexInputState {
+  std::vector<VertexInputAttribute> attributes;
+  std::vector<VertexInputBinding> bindings;
+};
 
 // Instance.
 Instance Create(const char* const* extensions = nullptr,
@@ -91,7 +112,7 @@ void DestroyPipelineLayout(Device device, PipelineLayout layout);
 struct GraphicsPipelineCreateInfo {
   ShaderCreateInfo vertex;
   ShaderCreateInfo fragment;
-  VertexInputBindings vertex_input;
+  VertexInputState vertex_input;
   PipelineLayout layout;
   GraphicsPipelineStateInfo states;
 };
@@ -442,8 +463,5 @@ void DestroyImageView(Device device, ImageView view);
 Sampler CreateSampler(Device device,
                       SamplerCreateInfo info = SamplerCreateInfo());
 void DestroySampler(Device device, Sampler sampler);
-
-// Helpers.
-size_t GetVertexAttributeSize(VertexAttributeType attribute);
 
 }  // namespace RenderAPI

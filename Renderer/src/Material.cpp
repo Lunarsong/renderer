@@ -24,25 +24,6 @@ struct TextureInfo {
               RenderAPI::ShaderStageFlags stages, const char* sampler)
       : set(set), binding(binding), stages(stages), sampler(sampler) {}
 };
-
-RenderAPI::VertexAttributeType GetAttributeType(VertexAttribute attribute) {
-  switch (attribute) {
-    case VertexAttribute::kPosition:
-      return RenderAPI::VertexAttributeType::kVec3;
-    case VertexAttribute::kTexCoords:
-      return RenderAPI::VertexAttributeType::kVec2;
-    case VertexAttribute::kColor:
-      return RenderAPI::VertexAttributeType::kVec3;
-    case VertexAttribute::kNormals:
-      return RenderAPI::VertexAttributeType::kVec3;
-    case VertexAttribute::kBoneIndices:
-      return RenderAPI::VertexAttributeType::kVec3;
-    case VertexAttribute::kBoneWeights:
-      return RenderAPI::VertexAttributeType::kVec3;
-    default:
-      throw "Unhandled attribute.";
-  }
-}
 }  // namespace
 
 struct Material::BuilderDetails {
@@ -146,9 +127,16 @@ Material::Builder& Material::Builder::DynamicState(
 }
 
 // Inputs:
-Material::Builder& Material::Builder::AddVertexAttribute(
-    VertexAttribute attribute) {
-  impl_->attributes.push_back(attribute);
+Material::Builder& Material::Builder::VertexAttribute(
+    uint32_t location, uint32_t binding, RenderAPI::TextureFormat format,
+    uint32_t offset) {
+  impl_->info.vertex_input.attributes.emplace_back(location, binding, format,
+                                                   offset);
+  return *this;
+}
+Material::Builder& Material::Builder::VertexBinding(
+    uint32_t binding, uint32_t stride, RenderAPI::VertexInputRate rate) {
+  impl_->info.vertex_input.bindings.emplace_back(binding, stride, rate);
   return *this;
 }
 
@@ -314,20 +302,6 @@ Material* Material::Builder::Build() {
   // Create the pipeline layout.
   impl_->info.layout =
       RenderAPI::CreatePipelineLayout(impl_->device, impl_->layout_info);
-
-  // Set the vertex layout.
-  impl_->info.vertex_input.resize(1);
-  impl_->info.vertex_input[0].layout.resize(impl_->attributes.size());
-  size_t offset = 0;
-  uint32_t binding = 0;
-  for (const auto& vertex_attribute : impl_->attributes) {
-    RenderAPI::VertexAttributeType attribute =
-        GetAttributeType(vertex_attribute);
-    impl_->info.vertex_input[0].layout[binding].type = attribute;
-    impl_->info.vertex_input[0].layout[binding].offset = offset;
-    offset += RenderAPI::GetVertexAttributeSize(attribute);
-    ++binding;
-  }
 
   // Create the descriptor set pool.
   static constexpr uint32_t kNumBuffers = 3;

@@ -153,8 +153,9 @@ void Run() {
     RenderAPI::CmdBegin(it);
     RenderAPI::ClearValue clear_value;
     RenderAPI::CmdBeginRenderPass(
-        it,
-        RenderAPI::BeginRenderPassInfo(pass, framebuffers[i], 1, &clear_value));
+        it, RenderAPI::BeginRenderPassInfo(pass, framebuffers[i],
+                                           RenderAPI::Rect2D(0, 0, 1920, 1200),
+                                           1, &clear_value));
     RenderAPI::CmdBindPipeline(it, pipeline);
     RenderAPI::CmdBindVertexBuffers(it, 0, 1, &vertex_buffer);
     RenderAPI::CmdBindIndexBuffer(it, index_buffer,
@@ -297,11 +298,13 @@ RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
   info.fragment.code_size = frag.size();
-  info.vertex_input.resize(1);
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec2, 0});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 2});
+  info.vertex_input.attributes.emplace_back(
+      0, 0, RenderAPI::TextureFormat::kR32G32_SFLOAT, 0);
+  info.vertex_input.attributes.emplace_back(
+      1, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+      static_cast<uint32_t>(sizeof(float) * 2));
+  info.vertex_input.bindings.emplace_back(
+      0, static_cast<uint32_t>(sizeof(float) * 5));
   info.layout = layout;
 
   info.states.viewport.viewports.emplace_back(

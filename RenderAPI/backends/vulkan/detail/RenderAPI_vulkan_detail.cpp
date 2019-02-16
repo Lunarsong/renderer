@@ -353,36 +353,6 @@ VkShaderModule CreateShaderModule(VkDevice device, const uint32_t* code,
   return module;
 }
 
-size_t GetVertexAttributeSize(VertexAttributeType attribute) {
-  switch (attribute) {
-    case VertexAttributeType::kFloat:
-      return sizeof(float);
-    case VertexAttributeType::kVec2:
-      return sizeof(float) * 2;
-    case VertexAttributeType::kVec3:
-      return sizeof(float) * 3;
-    case VertexAttributeType::kVec4:
-      return sizeof(float) * 4;
-    default:
-      throw std::runtime_error("Invalid vertex attribute type!");
-  }
-}
-
-VkFormat GetFormatFromVertexAttributeType(VertexAttributeType attribute) {
-  switch (attribute) {
-    case VertexAttributeType::kFloat:
-      return VK_FORMAT_R32_SFLOAT;
-    case VertexAttributeType::kVec2:
-      return VK_FORMAT_R32G32_SFLOAT;
-    case VertexAttributeType::kVec3:
-      return VK_FORMAT_R32G32B32_SFLOAT;
-    case VertexAttributeType::kVec4:
-      return VK_FORMAT_R32G32B32A32_SFLOAT;
-    default:
-      throw std::runtime_error("Invalid vertex attribute type!");
-  }
-}
-
 VkBufferUsageFlagBits MemoryUsageToVulkan(MemoryUsage usage) {
   switch (usage) {
     case MemoryUsage::kCpu:

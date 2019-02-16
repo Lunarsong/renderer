@@ -70,10 +70,15 @@ CascadeShadowsPass CascadeShadowsPass::Create(RenderAPI::Device device) {
   builder.DepthWrite(true);
   builder.DepthTest(true);
   builder.DepthClamp(true);
-  builder.AddVertexAttribute(VertexAttribute::kPosition);
-  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
-  builder.AddVertexAttribute(VertexAttribute::kColor);
-  builder.AddVertexAttribute(VertexAttribute::kNormals);
+  builder.VertexAttribute(0, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT, 0);
+  builder.VertexAttribute(1, 0, RenderAPI::TextureFormat::kR32G32_SFLOAT,
+                          sizeof(float) * 3);
+  builder.VertexAttribute(2, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+                          sizeof(float) * 5);
+  builder.VertexAttribute(3, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+                          sizeof(float) * 8);
+  builder.VertexBinding(0, sizeof(float) * 11,
+                        RenderAPI::VertexInputRate::kVertex);
   pass.material = builder.Build();
 
   return pass;

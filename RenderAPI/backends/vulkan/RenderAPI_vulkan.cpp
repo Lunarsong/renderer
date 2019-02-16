@@ -419,49 +419,19 @@ GraphicsPipeline CreateGraphicsPipeline(
                                                     fragShaderStageInfo};
 
   // Create the vertex binding description.
-  size_t num_vertex_attributes = 0;
-  std::vector<VkVertexInputBindingDescription> bindingDescriptions(
-      info.vertex_input.size());
-  uint32_t binding = 0;
-  for (const auto& vertex_binding : info.vertex_input) {
-    size_t binding_size = 0;
-    num_vertex_attributes += vertex_binding.layout.size();
-    for (const auto& vertex_attribute : vertex_binding.layout) {
-      binding_size += GetVertexAttributeSize(vertex_attribute.type);
-    }
-    bindingDescriptions[binding].binding = binding;
-    bindingDescriptions[binding].stride = binding_size;
-    bindingDescriptions[binding].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    ++binding;
-  }
-
-  // Create the vertex attributes descriptions.
-  std::vector<VkVertexInputAttributeDescription> attributeDescriptions(
-      num_vertex_attributes);
-  binding = 0;
-  uint32_t location = 0;
-  for (const auto& vertex_binding : info.vertex_input) {
-    size_t binding_size = 0;
-    for (const auto& vertex_attribute : vertex_binding.layout) {
-      attributeDescriptions[location].binding = binding;
-      attributeDescriptions[location].location = location;
-      attributeDescriptions[location].format =
-          GetFormatFromVertexAttributeType(vertex_attribute.type);
-      attributeDescriptions[location].offset = vertex_attribute.offset;
-      ++location;
-    }
-    ++binding;
-  }
-
   VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
   vertexInputInfo.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   vertexInputInfo.vertexBindingDescriptionCount =
-      static_cast<uint32_t>(bindingDescriptions.size());
+      static_cast<uint32_t>(info.vertex_input.bindings.size());
   vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+      static_cast<uint32_t>(info.vertex_input.attributes.size());
+  vertexInputInfo.pVertexBindingDescriptions =
+      reinterpret_cast<const VkVertexInputBindingDescription*>(
+          info.vertex_input.bindings.data());
+  vertexInputInfo.pVertexAttributeDescriptions =
+      reinterpret_cast<const VkVertexInputAttributeDescription*>(
+          info.vertex_input.attributes.data());
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
   inputAssembly.sType =

@@ -1,7 +1,8 @@
 #include "vertex.h"
 
-const RenderAPI::VertexLayout Vertex::layout = {
-    {RenderAPI::VertexAttributeType::kVec3, 0},
-    {RenderAPI::VertexAttributeType::kVec2, sizeof(float) * 3},
-    {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 5},
-    {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 8}};
+const RenderAPI::VertexInputState Vertex::layout = {
+    {{0, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT, 0},
+     {1, 0, RenderAPI::TextureFormat::kR32G32_SFLOAT, sizeof(float) * 3},
+     {2, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT, sizeof(float) * 5},
+     {3, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT, sizeof(float) * 8}},
+    {{0, sizeof(float) * 11, RenderAPI::VertexInputRate::kVertex}}};

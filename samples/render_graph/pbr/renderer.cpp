@@ -51,7 +51,7 @@ RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
   info.fragment.code_size = frag.size();
-  info.vertex_input = {{Vertex::layout}};
+  info.vertex_input = Vertex::layout;
   info.layout = layout;
 
   info.states.blend.attachments.resize(1);
@@ -164,7 +164,10 @@ Renderer::Renderer(RenderAPI::Device device) : device_(device) {
   skybox_builder.DepthTest(true);
   skybox_builder.DepthCompareOp(RenderAPI::CompareOp::kLessOrEqual);
   skybox_builder.CullMode(RenderAPI::CullModeFlagBits::kFront);
-  skybox_builder.AddVertexAttribute(VertexAttribute::kPosition);
+  skybox_builder.VertexAttribute(
+      0, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT, 0);
+  skybox_builder.VertexBinding(0, sizeof(float) * 3,
+                               RenderAPI::VertexInputRate::kVertex);
   skybox_material_ = skybox_builder.Build();
 
   // Create the shadow pass.

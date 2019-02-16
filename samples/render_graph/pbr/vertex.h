@@ -9,5 +9,5 @@ struct Vertex {
   glm::vec3 color;
   glm::vec3 normal;
 
-  static const RenderAPI::VertexLayout layout;
+  static const RenderAPI::VertexInputState layout;
 };

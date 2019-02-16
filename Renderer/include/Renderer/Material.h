@@ -73,7 +73,11 @@ class Material {
     Builder& DynamicState(RenderAPI::DynamicState state);
 
     // Inputs:
-    Builder& AddVertexAttribute(VertexAttribute attribute);
+    Builder& VertexAttribute(uint32_t location, uint32_t binding,
+                             RenderAPI::TextureFormat format, uint32_t offset);
+    Builder& VertexBinding(
+        uint32_t binding, uint32_t stride,
+        RenderAPI::VertexInputRate rate = RenderAPI::VertexInputRate::kVertex);
     Builder& PushConstant(RenderAPI::ShaderStageFlags stages, uint32_t size,
                           uint32_t offset = kOffsetNext);
     Builder& Uniform(uint32_t set, uint32_t binding,

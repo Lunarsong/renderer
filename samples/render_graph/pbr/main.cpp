@@ -40,9 +40,6 @@ struct LightDataGPU {
 }  // namespace
 
 void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window);
-RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
-                                           RenderAPI::RenderPass pass,
-                                           RenderAPI::PipelineLayout layout);
 GLFWwindow* InitWindow();
 void Shutdown(GLFWwindow* window);
 
@@ -113,10 +110,15 @@ void CreateMaterials(RenderAPI::Device device, MaterialCache* cache) {
   builder.DepthTest(true);
   builder.DepthWrite(true);
   builder.CullMode(RenderAPI::CullModeFlagBits::kNone);
-  builder.AddVertexAttribute(VertexAttribute::kPosition);
-  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
-  builder.AddVertexAttribute(VertexAttribute::kColor);
-  builder.AddVertexAttribute(VertexAttribute::kNormals);
+  builder.VertexAttribute(0, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT, 0);
+  builder.VertexAttribute(1, 0, RenderAPI::TextureFormat::kR32G32_SFLOAT,
+                          sizeof(float) * 3);
+  builder.VertexAttribute(2, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+                          sizeof(float) * 5);
+  builder.VertexAttribute(3, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+                          sizeof(float) * 8);
+  builder.VertexBinding(0, sizeof(float) * 11,
+                        RenderAPI::VertexInputRate::kVertex);
   cache->Cache("Metallic Roughness",
                MetallicRoughnessBits::kHasMetallicRoughnessTexture |
                    MetallicRoughnessBits::kHasBaseColorTexture |
@@ -181,10 +183,15 @@ void CreateMaterials(RenderAPI::Device device, MaterialCache* cache) {
   builder.DepthTest(true);
   builder.DepthWrite(true);
   builder.CullMode(RenderAPI::CullModeFlagBits::kNone);
-  builder.AddVertexAttribute(VertexAttribute::kPosition);
-  builder.AddVertexAttribute(VertexAttribute::kTexCoords);
-  builder.AddVertexAttribute(VertexAttribute::kColor);
-  builder.AddVertexAttribute(VertexAttribute::kNormals);
+  builder.VertexAttribute(0, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT, 0);
+  builder.VertexAttribute(1, 0, RenderAPI::TextureFormat::kR32G32_SFLOAT,
+                          sizeof(float) * 3);
+  builder.VertexAttribute(2, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+                          sizeof(float) * 5);
+  builder.VertexAttribute(3, 0, RenderAPI::TextureFormat::kR32G32B32_SFLOAT,
+                          sizeof(float) * 8);
+  builder.VertexBinding(0, sizeof(float) * 11,
+                        RenderAPI::VertexInputRate::kVertex);
   cache->Cache("Metallic Roughness", 0, builder.Build());
 }
 
@@ -351,37 +358,6 @@ void CreateVkSurfance(RenderAPI::Instance instance, GLFWwindow* window) {
     throw std::runtime_error("failed to create window surface!");
   }
   RenderAPI::SetSurface(instance, surface);
-}
-
-RenderAPI::GraphicsPipeline CreatePipeline(RenderAPI::Device device,
-                                           RenderAPI::RenderPass pass,
-                                           RenderAPI::PipelineLayout layout) {
-  RenderAPI::GraphicsPipeline pipeline = RenderAPI::kInvalidHandle;
-
-  RenderAPI::GraphicsPipelineCreateInfo info;
-  auto vert = util::ReadFile("samples/render_graph/pbr/data/pbr.vert.spv");
-  auto frag = util::ReadFile("samples/render_graph/pbr/data/pbr.frag.spv");
-  info.vertex.code = reinterpret_cast<const uint32_t*>(vert.data());
-  info.vertex.code_size = vert.size();
-  info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
-  info.fragment.code_size = frag.size();
-  info.vertex_input.resize(1);
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, 0});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec2, sizeof(float) * 3});
-  info.vertex_input[0].layout.push_back(
-      {RenderAPI::VertexAttributeType::kVec3, sizeof(float) * 5});
-  info.layout = layout;
-
-  info.states.viewport.viewports.emplace_back(
-      RenderAPI::Viewport(0.0f, 0.0f, 1920.0f, 1200.0f));
-  info.states.blend.attachments.resize(1);
-  info.states.depth_stencil.depth_write_enable = true;
-  info.states.depth_stencil.depth_test_enable = true;
-  pipeline = RenderAPI::CreateGraphicsPipeline(device, pass, info);
-
-  return pipeline;
 }
 
 GLFWwindow* InitWindow() {

@@ -31,7 +31,7 @@ ShadowPass ShadowPass::Create(RenderAPI::Device device) {
   info.vertex.code_size = vert.size();
   info.fragment.code = reinterpret_cast<const uint32_t*>(frag.data());
   info.fragment.code_size = frag.size();
-  info.vertex_input = {{Vertex::layout}};
+  info.vertex_input = Vertex::layout;
   info.layout = pass.pipeline_layout;
 
   info.states.blend.attachments.resize(1);
