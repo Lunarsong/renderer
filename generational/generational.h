@@ -6,6 +6,7 @@
 
 namespace Generational {
 using HandleType = uint64_t;
+constexpr HandleType kInvalidHandle = 0;
 struct Handle {
   HandleType id;
 
@@ -19,6 +20,7 @@ struct Handle {
 
 class Manager {
  public:
+  Manager();
   Handle Create();
   bool IsAlive(Handle handle) const;
   void Destroy(Handle handle);

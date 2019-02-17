@@ -24,7 +24,7 @@ template <typename T>
 template <typename... Args>
 Generational::Handle GenerationalVector<T>::Create(Args&&... args) {
   Generational::Handle handle = manager_.Create();
-  auto idx = handle.Index();
+  auto idx = handle.Index() - 1;
   if (vector_.size() <= idx) {
     vector_.emplace_back(std::forward<Args>(args)...);
   } else {
@@ -36,7 +36,7 @@ Generational::Handle GenerationalVector<T>::Create(Args&&... args) {
 template <typename T>
 Generational::Handle GenerationalVector<T>::Create(T&& data) {
   Generational::Handle handle = manager_.Create();
-  auto idx = handle.Index();
+  auto idx = handle.Index() - 1;
   if (vector_.size() <= idx) {
     vector_.emplace_back(data);
   } else {
@@ -54,10 +54,10 @@ void GenerationalVector<T>::Destroy(Generational::Handle handle) {
 template <typename T>
 T& GenerationalVector<T>::operator[](Generational::Handle handle) {
   assert(manager_.IsAlive(handle) && "Invalid handle!");
-  return vector_[handle.Index()];
+  return vector_[handle.Index() - 1];
 }
 template <typename T>
 const T& GenerationalVector<T>::operator[](Generational::Handle handle) const {
   assert(manager_.IsAlive(handle) && "Invalid handle!");
-  return vector_[handle.Index()];
+  return vector_[handle.Index() - 1];
 }

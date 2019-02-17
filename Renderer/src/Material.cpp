@@ -449,6 +449,7 @@ MaterialInstance* MaterialImpl::CreateInstance() {
   }
 
   MaterialInstanceImpl* instance = new MaterialInstanceImpl();
+  instance->device_ = device_;
   instance->material_ = this;
   instance->descriptors_ = std::move(descriptors);
 
@@ -471,6 +472,7 @@ MaterialInstance* MaterialImpl::CreateInstance() {
 
 MaterialParams* MaterialImpl::CreateParams(uint32_t set) const {
   MaterialParamsImpl* instance = new MaterialParamsImpl();
+  instance->device_ = device_;
   instance->material_ = this;
 
   // Create param instances.

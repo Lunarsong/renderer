@@ -47,10 +47,12 @@ void Manager::Destroy(Handle handle) {
 }
 
 void Manager::Reset() {
-  generations_.clear();
+  generations_.resize(1);
   while (!free_indices_.empty()) {
     free_indices_.pop();
   }
 }
+
+Manager::Manager() { generations_.resize(1); }
 
 }  // namespace Generational

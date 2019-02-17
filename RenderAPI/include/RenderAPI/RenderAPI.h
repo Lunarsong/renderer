@@ -8,7 +8,7 @@
 
 namespace RenderAPI {
 using HandleType = uint64_t;
-static constexpr HandleType kInvalidHandle = ((HandleType)-1);
+static constexpr HandleType kInvalidHandle = 0;
 
 using Instance = HandleType;
 using Device = HandleType;
