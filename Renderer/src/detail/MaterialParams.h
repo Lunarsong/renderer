@@ -27,7 +27,7 @@ class MaterialParamsImpl : public MaterialParams {
 
   struct MaterialParam {
     RenderAPI::DescriptorType type;
-    UniformData data;
+    ParamData data;
     RenderUtils::BufferedBuffer buffers;
     RenderAPI::Sampler sampler;
     RenderAPI::ImageView texture = RenderAPI::kInvalidHandle;

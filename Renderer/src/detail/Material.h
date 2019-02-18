@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include "../upcast.h"
 
-struct UniformData {
+struct ParamData {
   size_t size = 0;
   std::unique_ptr<uint8_t[]> data;
 };
@@ -17,7 +17,7 @@ struct DescriptorData {
   RenderAPI::ShaderStageFlags stages;
   RenderAPI::DescriptorBindingFlags flags = 0;
   RenderAPI::Sampler sampler;
-  UniformData uniform;
+  ParamData uniform;
 };
 struct DescriptorBindings {
   std::vector<DescriptorData> bindings;
