@@ -231,7 +231,11 @@ Material* Material::Builder::Build() {
 
   impl_->info.states.blend.attachments.resize(1);
   if (impl_->blending == BlendMode::kBlend) {
-    assert(false);
+    impl_->info.states.blend.attachments[0].blend_enable = true;
+    impl_->info.states.blend.attachments[0].dst_alpha_blend_factor =
+        RenderAPI::BlendFactor::kOneMinusSrcAlpha;
+    impl_->info.states.blend.attachments[0].dst_color_blend_factor =
+        RenderAPI::BlendFactor::kOneMinusSrcAlpha;
   } else if (impl_->blending == BlendMode::kMask) {
     assert(false);
   }
