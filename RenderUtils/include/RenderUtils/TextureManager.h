@@ -12,6 +12,7 @@ struct TextureCreateInfo {
   uint32_t mips = 1;
   uint32_t array_layers = 1;
   RenderAPI::ImageCreateFlags flags = 0;
+  RenderAPI::Swizzle swizzle;
 };
 
 class TextureManager {
@@ -26,6 +27,8 @@ class TextureManager {
 
   void AddRef(RenderAPI::ImageView texture);
   void Release(RenderAPI::ImageView texture);
+
+  static TextureManager* Get();
 
  private:
   RenderAPI::Device device_;

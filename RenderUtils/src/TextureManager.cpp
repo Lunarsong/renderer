@@ -3,10 +3,17 @@
 #include <cassert>
 
 namespace RenderUtils {
+namespace {
+static TextureManager* g_texture_manager = nullptr;
+}  // namespace
 TextureManager::TextureManager(RenderAPI::Device device) : device_(device) {
   pool_ = RenderAPI::CreateCommandPool(
       device_, RenderAPI::CommandPoolCreateFlag::kTransient |
                    RenderAPI::CommandPoolCreateFlag::kResetCommand);
+
+  if (!g_texture_manager) {
+    g_texture_manager = this;
+  }
 }
 
 TextureManager::~TextureManager() {
@@ -15,6 +22,10 @@ TextureManager::~TextureManager() {
     RenderAPI::DestroyImage(it.second.image);
   }
   RenderAPI::DestroyCommandPool(pool_);
+
+  if (g_texture_manager == this) {
+    g_texture_manager = nullptr;
+  }
 }
 
 RenderAPI::ImageView TextureManager::Create(
@@ -62,6 +73,7 @@ RenderAPI::ImageView TextureManager::Create(
   image_view_info.subresource_range.level_count = info.mips;
   image_view_info.subresource_range.aspect_mask =
       RenderAPI::ImageAspectFlagBits::kColorBit;
+  image_view_info.swizzle = info.swizzle;
   RenderAPI::ImageView view =
       RenderAPI::CreateImageView(device_, image_view_info);
 
@@ -87,4 +99,6 @@ void TextureManager::Release(RenderAPI::ImageView texture) {
     cache_.erase(it);
   }
 }
+
+TextureManager* TextureManager::Get() { return g_texture_manager; }
 }  // namespace RenderUtils
