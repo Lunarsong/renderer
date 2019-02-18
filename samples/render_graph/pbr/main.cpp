@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
+#include <RenderUtils/TextureManager.h>
 #include <GLM/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -217,6 +218,8 @@ void Run() {
   // Create a device and swapchain.
   RenderAPI::Device device = RenderAPI::CreateDevice(instance);
   RenderAPI::CommandPool command_pool = RenderAPI::CreateCommandPool(device);
+  RenderUtils::TextureManager* texture_manager =
+      new RenderUtils::TextureManager(device);
 
   RenderGraph render_graph_(device);
   render_graph_.BuildSwapChain(width, height);
@@ -243,11 +246,8 @@ void Run() {
   mat.uAmbientOcclusion = 0.2f;
   scene.meshes.back().primitives[0].material->SetParam(1, 5, mat);
 
-  std::vector<RenderAPI::Image> image_cache;
-  std::vector<RenderAPI::ImageView> image_views_cache;
   Mesh mesh;
-  MeshFromGLTF(device, command_pool, materials, mesh, image_cache,
-               image_views_cache);
+  MeshFromGLTF(device, command_pool, materials, mesh, texture_manager);
   scene.meshes.push_back(std::move(mesh));
 
   RenderAPI::Image irradiance_image;
@@ -312,13 +312,7 @@ void Run() {
   DestroyScene(device, scene);
   delete renderer;
   delete materials;
-
-  for (auto& it : image_views_cache) {
-    RenderAPI::DestroyImageView(device, it);
-  }
-  for (auto& it : image_cache) {
-    RenderAPI::DestroyImage(it);
-  }
+  delete texture_manager;
 
   renderer->DestroyView(&view);
   DestroyTonemapPass(device, tonemap);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <RenderUtils/TextureManager.h>
 #include <Renderer/Material.h>
 #include <vector>
 #include "MaterialCache.h"
@@ -14,5 +15,4 @@ Mesh CreatePlaneMesh(RenderAPI::Device device,
                      RenderAPI::CommandPool command_pool);
 bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
                   MaterialCache* material_cache, Mesh& mesh,
-                  std::vector<RenderAPI::Image>& image_cache,
-                  std::vector<RenderAPI::ImageView>& image_views_cache);
+                  RenderUtils::TextureManager* texture_manager);

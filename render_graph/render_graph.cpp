@@ -6,7 +6,7 @@
 RenderGraph::RenderGraph(RenderAPI::Device device)
     : device_(device), builder_(&cache_) {
   command_pool_ = RenderAPI::CreateCommandPool(
-      device_, RenderAPI::CommandPoolCreateFlags::kResetCommand);
+      device_, RenderAPI::CommandPoolCreateFlag::kResetCommand);
   cache_.SetRenderObjects(device_, command_pool_);
 }
 

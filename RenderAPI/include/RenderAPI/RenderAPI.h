@@ -222,15 +222,16 @@ void* MapBuffer(Buffer buffer);
 void UnmapBuffer(Buffer buffer);
 
 // Command pools.
-enum class CommandPoolCreateFlags {
-  kDefault = 0,
-  kTransient = 0x00000001,
-  kResetCommand = 0x00000002,
-  kProtected = 0x00000004
-};
+namespace CommandPoolCreateFlag {
+constexpr uint32_t kDefault = 0;
+constexpr uint32_t kTransient = 0x00000001;
+constexpr uint32_t kResetCommand = 0x00000002;
+constexpr uint32_t kProtected = 0x00000004;
+}  // namespace CommandPoolCreateFlag
+using CommandPoolCreateFlags = uint32_t;
 CommandPool CreateCommandPool(
     Device device,
-    CommandPoolCreateFlags flags = CommandPoolCreateFlags::kDefault);
+    CommandPoolCreateFlags flags = CommandPoolCreateFlag::kDefault);
 void DestroyCommandPool(CommandPool pool);
 
 struct ColorClearValue {

@@ -350,7 +350,7 @@ RenderAPI::Buffer IndexBufferFromGltf(RenderAPI::Device device,
 RenderAPI::ImageView ImageAndImageViewFromGltf(
     RenderAPI::Device device, RenderAPI::CommandPool command_pool,
     const tinygltf::Image& gltf_image,
-    std::vector<RenderAPI::Image>& image_cache) {
+    RenderUtils::TextureManager* texture_manager) {
   unsigned char* buffer = nullptr;
   const unsigned char* copy_buffer = nullptr;
   size_t buffer_size = 0;
@@ -372,34 +372,26 @@ RenderAPI::ImageView ImageAndImageViewFromGltf(
     copy_buffer = &gltf_image.image[0];
     buffer_size = gltf_image.image.size();
   }
-  RenderAPI::TextureFormat format = RenderAPI::TextureFormat::kR8G8B8A8_UNORM;
 
-  RenderAPI::Image image = RenderAPI::CreateImage(
-      device, {RenderAPI::TextureType::Texture2D, format,
-               RenderAPI::Extent3D(gltf_image.width, gltf_image.height, 1)});
+  RenderUtils::TextureCreateInfo texture_info;
+  texture_info.format = RenderAPI::TextureFormat::kR8G8B8A8_UNORM;
+  texture_info.extent =
+      RenderAPI::Extent3D(gltf_image.width, gltf_image.height, 1);
   RenderAPI::BufferImageCopy image_copy(0, 0, 0, gltf_image.width,
                                         gltf_image.height, 1);
-  RenderAPI::StageCopyDataToImage(command_pool, image, copy_buffer, buffer_size,
-                                  1, &image_copy);
-  RenderAPI::ImageViewCreateInfo image_view_info(
-      image, RenderAPI::ImageViewType::Texture2D, format,
-      RenderAPI::ImageSubresourceRange(
-          RenderAPI::ImageAspectFlagBits::kColorBit));
   RenderAPI::ImageView image_view =
-      RenderAPI::CreateImageView(device, image_view_info);
+      texture_manager->Create(texture_info, copy_buffer, buffer_size);
 
   if (buffer) {
     delete[] buffer;
   }
 
-  image_cache.emplace_back(image);
   return image_view;
 }
 
 bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
                   MaterialCache* material_cache, Mesh& mesh,
-                  std::vector<RenderAPI::Image>& image_cache,
-                  std::vector<RenderAPI::ImageView>& image_views_cache) {
+                  RenderUtils::TextureManager* texture_manager) {
   tinygltf::Model gltf;
   const char* filename = "samples/render_graph/pbr/data/DamagedHelmet.glb";
   std::string err;
@@ -426,10 +418,8 @@ bool MeshFromGLTF(RenderAPI::Device device, RenderAPI::CommandPool command_pool,
   images.reserve(gltf.images.size());
   for (const auto& it : gltf.images) {
     images.push_back(
-        ImageAndImageViewFromGltf(device, command_pool, it, image_cache));
+        ImageAndImageViewFromGltf(device, command_pool, it, texture_manager));
   }
-  image_views_cache.insert(image_views_cache.end(), images.begin(),
-                           images.end());
 
   std::vector<MaterialInstance*> materials;
   materials.reserve(gltf.materials.size());
