@@ -1,4 +1,3 @@
 build --cxxopt="/std:c++latest"
-build --incompatible_remove_native_git_repository=false
 build --experimental_enable_runfiles
 run --experimental_enable_runfiles

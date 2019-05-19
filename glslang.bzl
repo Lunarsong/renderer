@@ -19,7 +19,7 @@ def glslang_impl(ctx):
       ctx.actions.run_shell(
           inputs = [src],
           outputs = [output],
-          command = "C:/VulkanSDK/1.1.97.0/Bin/glslangValidator -V %s -o %s" % (src.path, output.path),
+          command = "C:/Dev/VulkanSDK/1.1.106.0/Bin/glslangValidator -V %s -o %s" % (src.path, output.path),
       )
       runfiles.append(output)
 
